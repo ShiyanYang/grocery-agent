@@ -1,233 +1,92 @@
 # 🛒 Grocery Agent
 
-<div align="center">
+A local AI agent that chats with you to build a multi-day meal plan, then turns it into a shopping list
+that skips what's already in your pantry. It runs Llama 3 8B on-device with [MLX](https://github.com/ml-explore/mlx).
 
-[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Active-brightgreen)](#)
-[![Code Quality](https://img.shields.io/badge/Code%20Quality-Production%20Grade-brightgreen)](#code-quality)
+> 📚 Educational project: a learning exercise in building, testing and evaluating an LLM agent.
 
-**An AI-powered meal planning and shopping list generation agent**
+## Setup
 
-[Overview](#overview) • [Installation](#installation) • [Usage](#usage) • [Architecture](#architecture) • [Contributing](#contributing)
+Requires an **Apple Silicon Mac** (MLX) and ~10 GB free disk space.
 
-</div>
-
----
-
-## 📋 Overview
-
-> **📚 Educational Project** - This is a learning exercise demonstrating production-grade Python development practices, AI integration, and software engineering best practices.
-
-Grocery Agent is an intelligent CLI application that helps users plan meals and generate optimized shopping lists. It uses the Llama language model to:
-
-- 🍽️ Generate multi-day meal plans based on user preferences
-- 📝 Maintain a persistent pantry inventory
-- 🛍️ Create shopping lists excluding items already in the pantry
-- 💾 Remember conversation history for context-aware suggestions
-
-**Built with:** Python • LLaMA • JSON • Production-Grade Best Practices
-
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.8 or higher
-- 5GB+ disk space (for Llama model)
-- 8GB+ RAM recommended
-
-### Installation
-
-1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/grocery_agent.git
+git clone https://github.com/ShiyanYang/receipt_agent.git grocery_agent
 cd grocery_agent
-```
-
-2. **Create virtual environment**
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies**
-```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. **Download the Llama model** (if not already present)
-```bash
-mkdir -p models
-# Download llama-3-8b-instruct.gguf to models/ directory
-# ~4.6GB file from Hugging Face or GGUF repository
-```
-
-5. **Set up configuration**
-```bash
-cp .env.example .env
-# Edit .env with your settings (optional - uses defaults)
-```
-
-### Basic Usage
-
-**Generate meal plan and shopping list:**
-```bash
-python main.py
-```
-
-**Manage your pantry:**
-```bash
-python app.py
-```
-
-**Available pantry commands:**
-```
-list              - Show all pantry items
-add <item>        - Add item to pantry
-remove <item>     - Remove item from pantry
-help              - Show help message
-quit              - Exit application
-```
-
----
-
-## 📁 Project Structure
-
-```
-grocery_agent/
-├── agent.py              # Core AI agent implementation
-├── pantry.py             # Pantry management and persistence
-├── memory.py             # Conversation memory with file storage
-├── config.py             # Configuration management (NEW)
-├── app.py                # Pantry CLI interface
-├── main.py               # Main entry point
-├── eval.py               # Evaluation and testing utilities
-│
-├── data/
-│   └── pantry.json       # Pantry items storage
-├── memory/
-│   └── conversation.json # Conversation history
-├── models/
-│   └── llama-3-8b-instruct.gguf  # LLM model file
-│
-├── requirements.txt      # Python dependencies
-├── .env.example          # Configuration template
-├── .gitignore            # Git ignore rules
-└── README.md             # This file
-```
-
----
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-Configuration is managed through environment variables with sensible defaults:
+Put an MLX model in `models/llama-3-8b-instruct-mlx/`, for example by converting from Hugging Face:
 
 ```bash
-# LLM Settings
-export MODEL_PATH="./models/llama-3-8b-instruct.gguf"
-export LLM_N_CTX=2048              # Context window size
-export LLM_N_THREADS=4             # Number of inference threads
-export LLM_TEMPERATURE=0.0         # Generation temperature (0=deterministic)
-export LLM_MAX_TOKENS=1024         # Max tokens per response
-
-# Data Storage
-export PANTRY_FILE="data/pantry.json"
-export MEMORY_FILE="memory/conversation.json"
-
-# Logging
-export LOG_LEVEL="INFO"            # DEBUG, INFO, WARNING, ERROR
-export ENV="development"           # development, production, testing
+mlx_lm.convert --hf-path meta-llama/Meta-Llama-3-8B-Instruct \
+  --mlx-path models/llama-3-8b-instruct-mlx -q --q-bits 8
 ```
 
-### .env File (Optional)
-Copy `.env.example` to `.env` and customize:
+Settings (model path, temperature, file locations) live in `config.py` and can be overridden with
+environment variables or a `.env` file (see `.env.example`).
+
+## Usage
+
 ```bash
-cp .env.example .env
-# Edit .env with your preferred settings
+python main.py      # chat to create a meal plan, then print the shopping list
+python run_gui.py   # same, in a desktop chat window
+python app.py       # manage the pantry: list, add <item>, remove <item>, help, quit
 ```
 
-See `config.py` for all available options.
+## Project structure
 
----
+```
+agent.py          # LLM agent: meal-plan conversation, JSON validation and self-repair, shopping list
+pantry.py         # pantry storage (data/pantry.json)
+memory.py         # conversation history (memory/conversation.json)
+config.py         # settings with env-var overrides
+main.py, app.py   # CLI entry points (meal planner, pantry manager)
+chat_gui.py       # Tkinter chat GUI (run via run_gui.py)
+eval.py           # evaluation harness
+eval_data/        # golden eval cases (JSONL)
+test/             # unit tests (pytest)
+```
 
-## 🏗️ Architecture
+## Testing & evaluation
 
-### Core Components
-
-#### Agent (`agent.py`)
-- Orchestrates meal planning and shopping list generation
-- Integrates with LLaMA for conversational AI
-- Manages ingredient normalization and deduplication
-
-#### Pantry (`pantry.py`)
-- Persistent storage of pantry items
-- Atomic file operations for data safety
-- Input validation and error handling
-
-#### Memory (`memory.py`)
-- Conversation history with file persistence
-- Search and retrieval capabilities
-- Automatic loading on initialization
-
-#### Configuration (`config.py`)
-- Centralized configuration management
-- Environment variable override support
-- Multi-environment profiles (dev, prod, testing)
-`
-
----
-
-## 🧪 Testing & Evaluation
-
-Run the evaluation suite:
 ```bash
-python eval.py
+pytest test/                      # unit tests (no model needed)
+python eval.py                    # run the agent on eval_data/meal_plan_cases.jsonl
+python eval.py --judge-model ./models/llama-3-8b-instruct-mlx   # also grade with an LLM judge
 ```
 
-This will:
-- Generate multiple meal plans
-- Measure performance metrics
-- Validate output format
-- Generate `eval_results.json`
+Each eval case runs several times and is scored with rule checks: day count, meal types, ingredient limit,
+forbidden ingredients, and pantry items leaking into the shopping list. The optional LLM judge additionally
+grades diet compliance (including implied ingredients), whether the plan matches the request, and whether
+the meals make sense. Results are saved to `eval_results.json`.
 
+### Latest results
 
----
+Llama 3 8B (MLX) as both agent and judge, temperature 0.7, 5 cases × 3 runs.
 
-## 🐛 Known Limitations
+| Case | Rule checks passed | Failed rule check | Judge passed | Judge score (1–5) | Avg meal-plan time |
+|---|:-:|---|:-:|:-:|--:|
+| `veg_3day_breakfast_dinner` | 2/3 | pantry leak: `table salt` | 0/3 | 2.33 | 76.7 s |
+| `two_day_all_meals` | 3/3 | — | 3/3 | 5.00 | 51.4 s |
+| `gluten_free_1day` | 2/3 | pantry leak: `Sweet potatoes`¹ | 2/3 | 4.00 | 33.3 s |
+| `dinner_only_4day_stocked_pantry` | 1/3 | pantry leak: `boneless chicken breasts`, `chicken breasts`, `cooked rice` | 3/3 | 4.00 | 43.6 s |
+| `pescatarian_2day_lunch` | 3/3 | — | 1/3 | 3.00 | 32.4 s |
+| **Overall** | **11/15 (73%)** | | **9/15 (60%)** | **3.67** | |
 
-- **LLM Inference Speed** - Depends on model size and hardware
-- **Context Limit** - Llama 3 8B has 8K token context window
-- **JSON Parsing** - Uses regex-based extraction (not perfect)
-- **Concurrent Access** - Single-threaded file access
-- **Model Size** - Requires significant disk/memory
+All failed rule checks are pantry leaks: the agent's pantry filter only removes exact matches.
+¹ False positive: sweet potatoes aren't potatoes.
+The judge is unreliable when grading its own model's output (e.g. it called eggs non-vegetarian),
+so treat judge numbers as rough until a stronger judge model is used.
 
-See [PRODUCTION_IMPROVEMENTS.md](PRODUCTION_IMPROVEMENTS.md#-remaining-high-priority-issues) for planned improvements.
+## Known limitations
 
----
-## 📝 License
+- Pantry matching is exact: `chicken breasts` isn't recognised as pantry `chicken breast`.
+- Meal plans are extracted from the model's reply with a regex, then schema-validated and sent back for repair if invalid.
+- Single-user: pantry and memory are plain JSON files with no concurrent-access handling.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+See [PRODUCTION_IMPROVEMENTS.md](PRODUCTION_IMPROVEMENTS.md) for planned work.
 
----
+## License
 
-## 📖 Learning Resources
-
-This project demonstrates:
-- **Production Python** - Type hints, error handling, logging
-- **File I/O** - Atomic operations, JSON persistence
-- **AI Integration** - LLaMA model integration, prompt engineering
-- **Configuration Management** - Environment variables, config classes
-- **Software Architecture** - Modular design, separation of concerns
-- **Best Practices** - Code organization, documentation, testing
-
----
-
-<div align="center">
-
-**Made with ❤️ as a learning exercise**
-
-If you found this helpful, please consider starring ⭐ the repository!
-
-</div>
+MIT, see [LICENSE](LICENSE).

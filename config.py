@@ -31,8 +31,14 @@ class Config:
     MODEL_PATH = os.getenv("MODEL_PATH", "./models/llama-3-8b-instruct-mlx")
     LLM_N_CTX = int(os.getenv("LLM_N_CTX", "2048"))
     LLM_N_THREADS = int(os.getenv("LLM_N_THREADS", "4"))
-    LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.0"))
+    LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+
+    # ============ Meal Plan Rules ============
+    # Keep MAX_INGREDIENTS_PER_MEAL in sync with rule 5 of the system prompt in agent.py.
+    MAX_INGREDIENTS_PER_MEAL = int(os.getenv("MAX_INGREDIENTS_PER_MEAL", "7"))
+    # How many times the agent sends an invalid meal plan back to the model for correction.
+    MAX_REPAIR_ATTEMPTS = int(os.getenv("MAX_REPAIR_ATTEMPTS", "2"))
     
     # ============ Data Storage Settings ============
     PANTRY_FILE = os.getenv("PANTRY_FILE", "data/pantry.json")

@@ -7,7 +7,7 @@ from config import config
 import json
 import re
 import logging
-from typing import Optional, Dict, List, Any, Tuple
+from typing import Callable, Optional, Dict, List, Any, Tuple
 from jsonschema import validate, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -93,8 +93,15 @@ class Agent:
             return []
     
         
-    def generate_meal_plan(self):
-        """Generate the meal plan over the next X days."""
+    def generate_meal_plan(self, input_fn: Optional[Callable[[str], str]] = None,
+                           output_fn: Optional[Callable[[str], None]] = None) -> Optional[List[Dict[str, Any]]]:
+        """Generate the meal plan over the next X days.
+
+        input_fn / output_fn default to the terminal (input / print); the eval
+        harness passes scripted versions so a conversation can run without stdin.
+        """
+        input_fn = input_fn or input
+        output_fn = output_fn or print
         
         system_prompt = """You role is to assistant the user for meal planning.
 
@@ -111,51 +118,88 @@ class Agent:
     ''' 5. For each meal, there are no mroe than 7 ingredients. Please choose the ingredeients that are essential for the meal.
         """
 
-        print("Hi I am your meal planning assistant. How many days do you want to prepare for meals?")
+        output_fn("Hi I am your meal planning assistant. How many days do you want to prepare for meals?")
         meal_plan = None
-        response="" # create an empty response first
 
         messages = [
             {"role":"system", "content": system_prompt}
             ]
          
         while True:  
-            user_input = input ("You: ")
+            try:
+                user_input = input_fn("You: ")
+            except EOFError:
+                user_input = "exit"
             if user_input.strip().lower() in ('exit','quit','bye'):
-                print("See you next time : )")
+                output_fn("See you next time : )")
                 break
             
             messages.append({"role":"user","content": user_input})
             # Save user input to persistent memory
             self.memory.add(f"User: {user_input}")
             
-            try:
-                content = self.generate_text(messages)
-            except (KeyError, IndexError, AttributeError) as e:
-                print("MLX model generation is not available")
-                raise e
-            
-            print(f"Answer:{content}")
-            messages.append({"role":"assistant", "content":content})
-            # Save assistant response to persistent memory
-            self.memory.add(f"Assistant: {content}")    
-            candidate = content.strip()
-            
-            try:
-                match = re.search(r'\[\s*\{.*?\}\s*\]', candidate, re.DOTALL)
-                if match:
-                    parsed = json.loads(match.group())
-                    validate(instance=parsed, schema=MEAL_PLAN_SCHEMA)
-                    meal_plan = parsed
-                    print("Meal plan generated.")
-                    break
-                       
-            except (json.JSONDecodeError, TypeError, ValidationError) as e:
-                print(f"Error validating meal plan: {e}")
-                pass
-               
+            content = self._ask(messages, output_fn)
+            plan, feedback = self._check_meal_plan(content)
+
+            # The model attempted a plan but broke a rule: tell it what was wrong and let it retry.
+            attempts = 0
+            while feedback and attempts < config.MAX_REPAIR_ATTEMPTS:
+                attempts += 1
+                output_fn(f"Meal plan rejected, asking for a fix "
+                          f"(attempt {attempts}/{config.MAX_REPAIR_ATTEMPTS}): {feedback}")
+                messages.append({"role": "user", "content": feedback})
+                content = self._ask(messages, output_fn)
+                plan, feedback = self._check_meal_plan(content)
+
+            if plan is not None:
+                meal_plan = plan
+                output_fn("Meal plan generated.")
+                break
+            if feedback:
+                output_fn(f"Could not get a valid meal plan after {attempts} correction attempt(s): {feedback}")
+
         return meal_plan
     
+    def _ask(self, messages: List[Dict[str, str]], output_fn: Callable[[str], None]) -> str:
+        """Generate the assistant's next reply, show it, and record it in history and memory."""
+        try:
+            content = self.generate_text(messages)
+        except (KeyError, IndexError, AttributeError):
+            output_fn("MLX model generation is not available")
+            raise
+        output_fn(f"Answer:{content}")
+        messages.append({"role": "assistant", "content": content})
+        self.memory.add(f"Assistant: {content}")
+        return content
+
+    def _check_meal_plan(self, content: str) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+        """Extract and validate a meal plan from a model reply.
+
+        Returns (plan, None) when the plan is valid, (None, feedback) when the reply
+        contains a plan that breaks a rule, and (None, None) when it contains no plan
+        (e.g. the model asked a follow-up question).
+        """
+        match = re.search(r'\[\s*\{.*?\}\s*\]', content.strip(), re.DOTALL)
+        if not match:
+            return None, None
+        resend = "Resend the complete meal plan as JSON only, following the schema."
+        try:
+            parsed = json.loads(match.group())
+            validate(instance=parsed, schema=MEAL_PLAN_SCHEMA)
+        except json.JSONDecodeError as e:
+            return None, f"Your meal plan is not valid JSON ({e}). {resend}"
+        except ValidationError as e:
+            return None, f"Your meal plan does not match the schema ({e.message}). {resend}"
+
+        limit = config.MAX_INGREDIENTS_PER_MEAL
+        over = [f"{m['day']} {m['meal_type']} '{m['meal_name']}' ({len(m['ingredients'])})"
+                for m in parsed if len(m["ingredients"]) > limit]
+        if over:
+            return None, (f"These meals have more than {limit} ingredients: {'; '.join(over)}. "
+                          f"Reduce each of them to at most {limit} essential ingredients, "
+                          f"keep every other meal unchanged. {resend}")
+        return parsed, None
+
     def _normalize(self, item: str) -> str:
         """Lowercase and strip whitespace/punctuation so 'Tomato', 'tomato ', 'Tomatoes' compare cleanly."""
         if not isinstance(item, str):
@@ -194,15 +238,20 @@ class Agent:
         return filtered_ingredients
 
         
-    def generate_shopping_list(self, meal_plan: Optional[List[Dict[str, Any]]]) -> List[str]:
-        """Generate the shopping list that is not in the pantry."""
+    def generate_shopping_list(self, meal_plan: Optional[List[Dict[str, Any]]],
+                               pantry_list: Optional[List[str]] = None) -> List[str]:
+        """Generate the shopping list that is not in the pantry.
+
+        If pantry_list is None, the pantry is read from disk.
+        """
         if meal_plan is None:
             logger.warning("No meal plan provided")
             return []
         
         try:
             all_ingredients = self._flatten_ingredients(meal_plan)
-            pantry_list = self.search_pantry()
+            if pantry_list is None:
+                pantry_list = self.search_pantry()
             needed = self._filter_out_pantry_items(all_ingredients, pantry_list)
             
             if not needed:

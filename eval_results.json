@@ -1,93 +1,2018 @@
 {
   "summary": {
-    "model": "llama-3-8b-instruct.gguf",
-    "iterations": 5,
+    "model": "llama-3-8b-instruct-mlx",
+    "temperature": 0.7,
+    "cases": 5,
+    "repeats": 3,
+    "overall_pass_rate": 0.733,
+    "errors": 0,
     "timeouts": 0,
-    "errors": 5,
-    "stuck_or_possible_loop": true,
-    "time_seconds": {
-      "avg": 0.0,
-      "median": 0.0,
-      "min": 0.0,
-      "max": 0.0
+    "per_case": {
+      "veg_3day_breakfast_dinner": {
+        "pass_rate": 0.667,
+        "check_pass_rates": {
+          "valid_plan": 1.0,
+          "days": 1.0,
+          "meal_types": 1.0,
+          "max_ingredients_per_meal": 1.0,
+          "forbidden_ingredients": 1.0,
+          "shopping_list_excludes_pantry": 0.667
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "avg_turns_used": 3,
+        "avg_meal_time_s": 76.68,
+        "judge": {
+          "pass_rate": 0.0,
+          "diet_compliant_rate": 0.333,
+          "matches_request_rate": 0.0,
+          "coherent_rate": 1.0,
+          "avg_score": 2.33,
+          "judge_errors": 0
+        }
+      },
+      "two_day_all_meals": {
+        "pass_rate": 1.0,
+        "check_pass_rates": {
+          "valid_plan": 1.0,
+          "days": 1.0,
+          "meal_types": 1.0,
+          "max_ingredients_per_meal": 1.0,
+          "shopping_list_excludes_pantry": 1.0
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "avg_turns_used": 3,
+        "avg_meal_time_s": 51.42,
+        "judge": {
+          "pass_rate": 1.0,
+          "diet_compliant_rate": 1.0,
+          "matches_request_rate": 1.0,
+          "coherent_rate": 1.0,
+          "avg_score": 5,
+          "judge_errors": 0
+        }
+      },
+      "gluten_free_1day": {
+        "pass_rate": 0.667,
+        "check_pass_rates": {
+          "valid_plan": 1.0,
+          "days": 1.0,
+          "meal_types": 1.0,
+          "max_ingredients_per_meal": 1.0,
+          "forbidden_ingredients": 1.0,
+          "shopping_list_excludes_pantry": 0.667
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "avg_turns_used": 3,
+        "avg_meal_time_s": 33.26,
+        "judge": {
+          "pass_rate": 0.667,
+          "diet_compliant_rate": 0.667,
+          "matches_request_rate": 0.667,
+          "coherent_rate": 1.0,
+          "avg_score": 4,
+          "judge_errors": 0
+        }
+      },
+      "dinner_only_4day_stocked_pantry": {
+        "pass_rate": 0.333,
+        "check_pass_rates": {
+          "valid_plan": 1.0,
+          "days": 1.0,
+          "meal_types": 1.0,
+          "max_ingredients_per_meal": 1.0,
+          "shopping_list_excludes_pantry": 0.333
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "avg_turns_used": 3,
+        "avg_meal_time_s": 43.61,
+        "judge": {
+          "pass_rate": 1.0,
+          "diet_compliant_rate": 1.0,
+          "matches_request_rate": 1.0,
+          "coherent_rate": 1.0,
+          "avg_score": 4,
+          "judge_errors": 0
+        }
+      },
+      "pescatarian_2day_lunch": {
+        "pass_rate": 1.0,
+        "check_pass_rates": {
+          "valid_plan": 1.0,
+          "days": 1.0,
+          "meal_types": 1.0,
+          "max_ingredients_per_meal": 1.0,
+          "forbidden_ingredients": 1.0,
+          "shopping_list_excludes_pantry": 1.0
+        },
+        "errors": 0,
+        "timeouts": 0,
+        "avg_turns_used": 3,
+        "avg_meal_time_s": 32.43,
+        "judge": {
+          "pass_rate": 0.333,
+          "diet_compliant_rate": 0.333,
+          "matches_request_rate": 0.333,
+          "coherent_rate": 1.0,
+          "avg_score": 3,
+          "judge_errors": 0
+        }
+      }
     },
-    "meal_plans": {
-      "unique_count": 1,
-      "example": "None",
-      "max_consecutive_identical": 5
-    },
-    "shopping_lists": {
-      "unique_count": 1,
-      "avg_length_estimate": 1,
-      "example": "None",
-      "max_consecutive_identical": 5
+    "judge_model": "llama-3-8b-instruct-mlx",
+    "judge": {
+      "pass_rate": 0.6,
+      "diet_compliant_rate": 0.667,
+      "matches_request_rate": 0.6,
+      "coherent_rate": 1.0,
+      "avg_score": 3.67,
+      "judge_errors": 0
     }
   },
   "runs": [
     {
-      "iteration": 1,
-      "timeout": false,
-      "error": "EOF when reading a line",
-      "meal_time": null,
-      "shopping_time": null,
-      "total_time": null,
-      "raw_meal_plan": "None",
-      "raw_shopping_list": "None",
-      "normalized_shopping_list": [],
-      "is_ingredient_list": false,
-      "shopping_list_length_est": 1
+      "case": "veg_3day_breakfast_dinner",
+      "repeat": 1,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "breakfast",
+          "meal_name": "Veggie Omelette",
+          "ingredients": [
+            "eggs",
+            "onion",
+            "tomato",
+            "spinach",
+            "salt",
+            "pepper",
+            "oil"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Vegetable Quesadilla",
+          "ingredients": [
+            "whole wheat tortilla",
+            "cooked vegetables (bell peppers, onion, mushrooms)",
+            "cheese",
+            "oil",
+            "salt",
+            "pepper",
+            "tomato sauce"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "breakfast",
+          "meal_name": "Oatmeal with Fresh Fruits",
+          "ingredients": [
+            "oatmeal",
+            "fresh fruits (banana)",
+            "honey",
+            "milk",
+            "salt",
+            "water",
+            "butter"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Lentil Soup",
+          "ingredients": [
+            "cooked lentils",
+            "vegetable broth",
+            "onion",
+            "garlic",
+            "carrots",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "breakfast",
+          "meal_name": "Avocado Toast",
+          "ingredients": [
+            "whole wheat bread",
+            "avocado",
+            "salt",
+            "pepper",
+            "tomato",
+            "oil",
+            "lemon"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "dinner",
+          "meal_name": "Grilled Vegetable Wrap",
+          "ingredients": [
+            "whole wheat wrap",
+            "grilled vegetables (zucchini)",
+            "cheese",
+            "oil",
+            "salt",
+            "pepper",
+            "tomato sauce"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "onion",
+        "tomato",
+        "spinach",
+        "pepper",
+        "oil",
+        "whole wheat tortilla",
+        "cooked vegetables (bell peppers, onion, mushrooms)",
+        "cheese",
+        "tomato sauce",
+        "oatmeal",
+        "fresh fruits (banana)",
+        "honey",
+        "milk",
+        "water",
+        "butter",
+        "cooked lentils",
+        "vegetable broth",
+        "garlic",
+        "carrots",
+        "whole wheat bread",
+        "avocado",
+        "lemon",
+        "whole wheat wrap",
+        "grilled vegetables (zucchini)"
+      ],
+      "turns_used": 3,
+      "load_time": 3.1967947483062744,
+      "meal_time": 92.38161277770996,
+      "shopping_time": 0.00014519691467285156,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": false,
+        "coherent": true,
+        "score": 3,
+        "issues": [
+          "The plan does not respect the 3-day request, it only provides 3 meals"
+        ],
+        "passed": false
+      },
+      "judge_time": 8.217875242233276,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 3 days",
+        "Answer:You would like to plan meals for 3 days. \n\nBefore we proceed, could you please tell me about your dietary preferences? Do you have any specific requirements or restrictions such as vegetarian, gluten-free, dairy-free or any food allergies?",
+        "You: I'm vegetarian. Only breakfast and dinner. No nuts please.",
+        "Answer:I've taken note of your vegetarian requirement and the fact that you don't want nuts in your meals.\n\nCan you please share with me your personal taste preferences? For instance, do you have a sweet tooth or prefer savory flavors? Are there any specific cuisines you enjoy, such as Italian, Mexican, or Indian?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 3-day meal plan:\n\n[\n  {\n    \"day\": \"Day 1\", \n    \"meal_type\": \"breakfast\", \n    \"meal_name\": \"Veggie Omelette\", \n    \"ingredients\": [\"eggs\", \"onion\", \"tomato\", \"spinach\", \"salt\", \"pepper\", \"oil\"]\n  }, \n  {\n    \"day\": \"Day 1\", \n    \"meal_type\": \"dinner\", \n    \"meal_name\": \"Vegetable Quesadilla\", \n    \"ingredients\": [\"whole wheat tortilla\", \"cooked vegetables (bell peppers, onion, mushrooms)\", \"cheese\", \"oil\", \"salt\", \"pepper\", \"tomato sauce\"]\n  }, \n  {\n    \"day\": \"Day 2\", \n    \"meal_type\": \"breakfast\", \n    \"meal_name\": \"Oatmeal with Fresh Fruits\", \n    \"ingredients\": [\"oatmeal\", \"fresh fruits (banana, apple)\", \"honey\", \"milk\", \"salt\", \"water\"]\n  }, \n  {\n    \"day\": \"Day 2\", \n    \"meal_type\": \"dinner\", \n    \"meal_name\": \"Lentil Soup\", \n    \"ingredients\": [\"cooked lentils\", \"vegetable broth\", \"onion\", \"garlic\", \"carrots\", \"celery\", \"salt\", \"pepper\"]\n  }, \n  {\n    \"day\": \"Day 3\", \n    \"meal_type\": \"breakfast\", \n    \"meal_name\": \"Avocado Toast\", \n    \"ingredients\": [\"whole wheat bread\", \"avocado\", \"salt\", \"pepper\", \"tomato\", \"oil\"]\n  }, \n  {\n    \"day\": \"Day 3\", \n    \"meal_type\": \"dinner\", \n    \"meal_name\": \"Grilled Vegetable Wrap\", \n    \"ingredients\": [\"whole wheat wrap\", \"grilled vegetables (zucchini, eggplant, red bell pepper)\", \"cheese\", \"oil\", \"salt\", \"pepper\"]\n  }\n]\n\nI hope you enjoy your meals!",
+        "Meal plan rejected, asking for a fix (attempt 1/2): These meals have more than 7 ingredients: Day 2 dinner 'Lentil Soup' (8). Reduce each of them to at most 7 essential ingredients, keep every other meal unchanged. Resend the complete meal plan as JSON only, following the schema.",
+        "Answer:[\n  {\n    \"day\": \"Day 1\", \n    \"meal_type\": \"breakfast\", \n    \"meal_name\": \"Veggie Omelette\", \n    \"ingredients\": [\"eggs\", \"onion\", \"tomato\", \"spinach\", \"salt\", \"pepper\", \"oil\"]\n  }, \n  {\n    \"day\": \"Day 1\", \n    \"meal_type\": \"dinner\", \n    \"meal_name\": \"Vegetable Quesadilla\", \n    \"ingredients\": [\"whole wheat tortilla\", \"cooked vegetables (bell peppers, onion, mushrooms)\", \"cheese\", \"oil\", \"salt\", \"pepper\", \"tomato sauce\"]\n  }, \n  {\n    \"day\": \"Day 2\", \n    \"meal_type\": \"breakfast\", \n    \"meal_name\": \"Oatmeal with Fresh Fruits\", \n    \"ingredients\": [\"oatmeal\", \"fresh fruits (banana)\", \"honey\", \"milk\", \"salt\", \"water\", \"butter\"]\n  }, \n  {\n    \"day\": \"Day 2\", \n    \"meal_type\": \"dinner\", \n    \"meal_name\": \"Lentil Soup\", \n    \"ingredients\": [\"cooked lentils\", \"vegetable broth\", \"onion\", \"garlic\", \"carrots\", \"salt\", \"pepper\"]\n  }, \n  {\n    \"day\": \"Day 3\", \n    \"meal_type\": \"breakfast\", \n    \"meal_name\": \"Avocado Toast\", \n    \"ingredients\": [\"whole wheat bread\", \"avocado\", \"salt\", \"pepper\", \"tomato\", \"oil\", \"lemon\"]\n  }, \n  {\n    \"day\": \"Day 3\", \n    \"meal_type\": \"dinner\", \n    \"meal_name\": \"Grilled Vegetable Wrap\", \n    \"ingredients\": [\"whole wheat wrap\", \"grilled vegetables (zucchini)\", \"cheese\", \"oil\", \"salt\", \"pepper\", \"tomato sauce\"]\n  }\n]",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 3,
+        "meal_types": [
+          "breakfast",
+          "dinner"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": []
+      }
     },
     {
-      "iteration": 2,
-      "timeout": false,
-      "error": "EOF when reading a line",
-      "meal_time": null,
-      "shopping_time": null,
-      "total_time": null,
-      "raw_meal_plan": "None",
-      "raw_shopping_list": "None",
-      "normalized_shopping_list": [],
-      "is_ingredient_list": false,
-      "shopping_list_length_est": 1
+      "case": "veg_3day_breakfast_dinner",
+      "repeat": 2,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "breakfast",
+          "meal_name": "Whole wheat toast with avocado and tomato",
+          "ingredients": [
+            "whole wheat bread",
+            "avocado",
+            "tomato",
+            "salt",
+            "pepper",
+            "water",
+            "butter"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Vegetable quinoa bowl",
+          "ingredients": [
+            "quinoa",
+            "mixed vegetables (bell peppers, carrots, broccoli)",
+            "olive oil",
+            "salt",
+            "pepper",
+            "soy sauce",
+            "water"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "breakfast",
+          "meal_name": "Oatmeal with banana and honey",
+          "ingredients": [
+            "oatmeal",
+            "banana",
+            "honey",
+            "water"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Lentil soup",
+          "ingredients": [
+            "lentils",
+            "onion",
+            "garlic",
+            "carrots",
+            "tomato",
+            "vegetable broth",
+            "salt"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "breakfast",
+          "meal_name": "Yogurt parfait with granola and mixed berries",
+          "ingredients": [
+            "yogurt",
+            "granola",
+            "mixed berries",
+            "table salt",
+            "water",
+            "honey",
+            "milk"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "dinner",
+          "meal_name": "Roasted vegetable wrap",
+          "ingredients": [
+            "whole wheat wrap",
+            "roasted eggplant",
+            "roasted zucchini",
+            "hummus",
+            "salt",
+            "pepper",
+            "water"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "whole wheat bread",
+        "avocado",
+        "tomato",
+        "pepper",
+        "water",
+        "butter",
+        "quinoa",
+        "mixed vegetables (bell peppers, carrots, broccoli)",
+        "soy sauce",
+        "oatmeal",
+        "banana",
+        "honey",
+        "lentils",
+        "onion",
+        "garlic",
+        "carrots",
+        "vegetable broth",
+        "yogurt",
+        "granola",
+        "mixed berries",
+        "table salt",
+        "milk",
+        "whole wheat wrap",
+        "roasted eggplant",
+        "roasted zucchini",
+        "hummus"
+      ],
+      "turns_used": 3,
+      "load_time": 3.09614896774292,
+      "meal_time": 88.16442275047302,
+      "shopping_time": 0.0001239776611328125,
+      "judge": {
+        "diet_compliant": false,
+        "matches_request": false,
+        "coherent": true,
+        "score": 2,
+        "issues": [
+          "The plan includes 2 days, not 3. The user asked for 3 days.",
+          "The plan includes lunch, which was not requested. The user asked for only breakfast and dinner.",
+          "The plan includes soy sauce, which contains soy and is not vegetarian.",
+          "The plan includes honey, which is not vegetarian.",
+          "The plan includes milk, which is not vegetarian.",
+          "The plan includes granola, which may contain nuts (not explicitly stated, but a common allergen)."
+        ],
+        "passed": false
+      },
+      "judge_time": 15.954174995422363,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 3 days",
+        "Answer:You want to plan meals for 3 days. \n\nCan you please tell me a bit about your dietary preferences? Do you have any food allergies or restrictions, such as vegetarian, gluten-free, or dairy-free?",
+        "You: I'm vegetarian. Only breakfast and dinner. No nuts please.",
+        "Answer:Thank you for letting me know! I'll make sure to plan vegetarian breakfast and dinner options for you.\n\nNow, I need to know a bit more about your taste preferences. Do you have a preferred cuisine in mind (e.g. Italian, Mexican, Indian)? Or are you open to suggestions?\n\n(Note: I'll only suggest dishes that do not include nuts)",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 3-day meal plan:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Whole wheat toast with avocado and tomato\",\n    \"ingredients\": [\"whole wheat bread\", \"avocado\", \"tomato\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Vegetable quinoa bowl\",\n    \"ingredients\": [\"quinoa\", \"mixed vegetables (bell peppers, carrots, broccoli)\", \"olive oil\", \"salt\", \"pepper\", \"soy sauce\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Oatmeal with banana and honey\",\n    \"ingredients\": [\"oatmeal\", \"banana\", \"honey\", \"water\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Lentil soup\",\n    \"ingredients\": [\"lentils\", \"onion\", \"garlic\", \"carrots\", \"tomato\", \"vegetable broth\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 3\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Yogurt parfait with granola and mixed berries\",\n    \"ingredients\": [\"yogurt\", \"granola\", \"mixed berries\", \"table salt\"]\n  },\n  {\n    \"day\": \"Day 3\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Roasted vegetable wrap\",\n    \"ingredients\": [\"whole wheat wrap\", \"roasted eggplant\", \"roasted zucchini\", \"roasted red bell pepper\", \"hummus\", \"salt\", \"pepper\"]\n  }\n]\n\nPlease note that I've avoided nuts and ensured that all meals are vegetarian. Enjoy your meals!",
+        "Meal plan rejected, asking for a fix (attempt 1/2): These meals have more than 7 ingredients: Day 2 dinner 'Lentil soup' (8). Reduce each of them to at most 7 essential ingredients, keep every other meal unchanged. Resend the complete meal plan as JSON only, following the schema.",
+        "Answer:[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Whole wheat toast with avocado and tomato\",\n    \"ingredients\": [\"whole wheat bread\", \"avocado\", \"tomato\", \"salt\", \"pepper\", \"water\", \"butter\"]\n  },\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Vegetable quinoa bowl\",\n    \"ingredients\": [\"quinoa\", \"mixed vegetables (bell peppers, carrots, broccoli)\", \"olive oil\", \"salt\", \"pepper\", \"soy sauce\", \"water\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Oatmeal with banana and honey\",\n    \"ingredients\": [\"oatmeal\", \"banana\", \"honey\", \"water\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Lentil soup\",\n    \"ingredients\": [\"lentils\", \"onion\", \"garlic\", \"carrots\", \"tomato\", \"vegetable broth\", \"salt\"]\n  },\n  {\n    \"day\": \"Day 3\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Yogurt parfait with granola and mixed berries\",\n    \"ingredients\": [\"yogurt\", \"granola\", \"mixed berries\", \"table salt\", \"water\", \"honey\", \"milk\"]\n  },\n  {\n    \"day\": \"Day 3\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Roasted vegetable wrap\",\n    \"ingredients\": [\"whole wheat wrap\", \"roasted eggplant\", \"roasted zucchini\", \"hummus\", \"salt\", \"pepper\", \"water\"]\n  }\n]",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": false,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": false
+      },
+      "details": {
+        "days": 3,
+        "meal_types": [
+          "breakfast",
+          "dinner"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": [
+          "table salt"
+        ]
+      }
     },
     {
-      "iteration": 3,
-      "timeout": false,
-      "error": "EOF when reading a line",
-      "meal_time": null,
-      "shopping_time": null,
-      "total_time": null,
-      "raw_meal_plan": "None",
-      "raw_shopping_list": "None",
-      "normalized_shopping_list": [],
-      "is_ingredient_list": false,
-      "shopping_list_length_est": 1
+      "case": "veg_3day_breakfast_dinner",
+      "repeat": 3,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "breakfast",
+          "meal_name": "Oatmeal with Banana and Honey",
+          "ingredients": [
+            "oats",
+            "banana",
+            "honey",
+            "water",
+            "milk"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Vegetable Quinoa Bowl",
+          "ingredients": [
+            "quinoa",
+            "vegetable broth",
+            "carrots",
+            "bell peppers",
+            "onions",
+            "tomatoes",
+            "olive oil"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "breakfast",
+          "meal_name": "Avocado Toast",
+          "ingredients": [
+            "whole wheat bread",
+            "avocado",
+            "salt",
+            "pepper",
+            "tomatoes",
+            "water",
+            "eggs"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Lentil Soup",
+          "ingredients": [
+            "red lentils",
+            "onions",
+            "garlic",
+            "carrots",
+            "vegetable broth",
+            "salt",
+            "water"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "breakfast",
+          "meal_name": "Yogurt Parfait",
+          "ingredients": [
+            "yogurt",
+            "granola",
+            "berries",
+            "milk",
+            "water",
+            "honey"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "dinner",
+          "meal_name": "Grilled Vegetable Wrap",
+          "ingredients": [
+            "whole wheat wrap",
+            "zucchini",
+            "bell peppers",
+            "onions",
+            "garlic",
+            "olive oil",
+            "water"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "oats",
+        "banana",
+        "honey",
+        "water",
+        "milk",
+        "quinoa",
+        "vegetable broth",
+        "carrots",
+        "bell peppers",
+        "onions",
+        "tomatoes",
+        "whole wheat bread",
+        "avocado",
+        "pepper",
+        "red lentils",
+        "garlic",
+        "yogurt",
+        "granola",
+        "berries",
+        "whole wheat wrap",
+        "zucchini"
+      ],
+      "turns_used": 3,
+      "load_time": 3.1972568035125732,
+      "meal_time": 49.49891901016235,
+      "shopping_time": 0.00011110305786132812,
+      "judge": {
+        "diet_compliant": false,
+        "matches_request": false,
+        "coherent": true,
+        "score": 2,
+        "issues": [
+          "Contains milk and eggs, which are not vegetarian",
+          "Does not respect the 'no nuts' request (granola contains nuts)",
+          "Only 2 days provided, not 3",
+          "Only 2 meals per day, not 1 breakfast and 1 dinner"
+        ],
+        "passed": false
+      },
+      "judge_time": 12.388510942459106,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 3 days",
+        "Answer:You want to plan meals for 3 days. That's a great start! Can you please tell me a bit about your dietary preferences and restrictions? Do you have any allergies or dislikes when it comes to food?",
+        "You: I'm vegetarian. Only breakfast and dinner. No nuts please.",
+        "Answer:So, I'll make sure to exclude nuts and include vegetarian options for both breakfast and dinner. \n\nTo get a better understanding of your preferences, can you please tell me what type of cuisine you're in the mood for? For example, would you like to have Italian-inspired, Indian-inspired, Mexican-inspired, or something else?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 3-day meal plan:\n\n[\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"breakfast\",\n        \"meal_name\": \"Oatmeal with Banana and Honey\",\n        \"ingredients\": [\"oats\", \"banana\", \"honey\", \"water\", \"milk\"]\n    },\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Vegetable Quinoa Bowl\",\n        \"ingredients\": [\"quinoa\", \"vegetable broth\", \"carrots\", \"bell peppers\", \"onions\", \"tomatoes\", \"olive oil\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"breakfast\",\n        \"meal_name\": \"Avocado Toast\",\n        \"ingredients\": [\"whole wheat bread\", \"avocado\", \"salt\", \"pepper\", \"tomatoes\", \"water\", \"eggs\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Lentil Soup\",\n        \"ingredients\": [\"red lentils\", \"onions\", \"garlic\", \"carrots\", \"vegetable broth\", \"salt\", \"water\"]\n    },\n    {\n        \"day\": \"Day 3\",\n        \"meal_type\": \"breakfast\",\n        \"meal_name\": \"Yogurt Parfait\",\n        \"ingredients\": [\"yogurt\", \"granola\", \"berries\", \"milk\", \"water\", \"honey\"]\n    },\n    {\n        \"day\": \"Day 3\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Grilled Vegetable Wrap\",\n        \"ingredients\": [\"whole wheat wrap\", \"zucchini\", \"bell peppers\", \"onions\", \"garlic\", \"olive oil\", \"water\"]\n    }\n]\n\nPlease note that this meal plan is tailored to your preferences and is free of nuts. If you have any further requests or changes, feel free to let me know!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 3,
+        "meal_types": [
+          "breakfast",
+          "dinner"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": []
+      }
     },
     {
-      "iteration": 4,
-      "timeout": false,
-      "error": "EOF when reading a line",
-      "meal_time": null,
-      "shopping_time": null,
-      "total_time": null,
-      "raw_meal_plan": "None",
-      "raw_shopping_list": "None",
-      "normalized_shopping_list": [],
-      "is_ingredient_list": false,
-      "shopping_list_length_est": 1
+      "case": "two_day_all_meals",
+      "repeat": 1,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "breakfast",
+          "meal_name": "Scrambled Eggs and Toast",
+          "ingredients": [
+            "eggs",
+            "bread",
+            "butter",
+            "salt",
+            "pepper",
+            "milk"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Chicken Sandwich",
+          "ingredients": [
+            "chicken breast",
+            "bread",
+            "mayo",
+            "lettuce",
+            "tomato",
+            "cheese",
+            "onion"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Spaghetti with Meatballs",
+          "ingredients": [
+            "spaghetti",
+            "ground beef",
+            "tomato sauce",
+            "onion",
+            "garlic",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "breakfast",
+          "meal_name": "Yogurt and Fruit Parfait",
+          "ingredients": [
+            "yogurt",
+            "granola",
+            "banana",
+            "milk",
+            "honey",
+            "berries"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "lunch",
+          "meal_name": "Tuna Salad Wrap",
+          "ingredients": [
+            "tuna",
+            "mayo",
+            "cucumber",
+            "carrots",
+            "lettuce",
+            "wraps"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Baked Chicken and Roasted Vegetables",
+          "ingredients": [
+            "chicken breast",
+            "carrots",
+            "brussels sprouts",
+            "olive oil",
+            "salt",
+            "pepper"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "eggs",
+        "bread",
+        "butter",
+        "pepper",
+        "milk",
+        "chicken breast",
+        "mayo",
+        "lettuce",
+        "tomato",
+        "cheese",
+        "onion",
+        "spaghetti",
+        "ground beef",
+        "tomato sauce",
+        "yogurt",
+        "granola",
+        "banana",
+        "honey",
+        "berries",
+        "tuna",
+        "cucumber",
+        "carrots",
+        "wraps",
+        "brussels sprouts"
+      ],
+      "turns_used": 3,
+      "load_time": 3.1084489822387695,
+      "meal_time": 46.896515130996704,
+      "shopping_time": 0.0001399517059326172,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 5,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 7.804678916931152,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 2 days",
+        "Answer:You need a meal plan for 2 days. Can you please tell me a little bit about your dietary preferences and restrictions? Do you have any allergies or dislikes when it comes to food?",
+        "You: Breakfast, lunch and dinner. No dietary restrictions.",
+        "Answer:I'd be happy to help you with a 2-day meal plan. Can you please give me an idea of your food preferences? Do you have a favorite cuisine or type of food that you would like me to suggest? For example, Italian, Indian, Mexican, etc.?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is a 2-day meal plan for you:\n\n[\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"breakfast\",\n        \"meal_name\": \"Scrambled Eggs and Toast\",\n        \"ingredients\": [\"eggs\", \"bread\", \"butter\", \"salt\", \"pepper\", \"milk\"]\n    },\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"lunch\",\n        \"meal_name\": \"Grilled Chicken Sandwich\",\n        \"ingredients\": [\"chicken breast\", \"bread\", \"mayo\", \"lettuce\", \"tomato\", \"cheese\", \"onion\"]\n    },\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Spaghetti with Meatballs\",\n        \"ingredients\": [\"spaghetti\", \"ground beef\", \"tomato sauce\", \"onion\", \"garlic\", \"salt\", \"pepper\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"breakfast\",\n        \"meal_name\": \"Yogurt and Fruit Parfait\",\n        \"ingredients\": [\"yogurt\", \"granola\", \"banana\", \"milk\", \"honey\", \"berries\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"lunch\",\n        \"meal_name\": \"Tuna Salad Wrap\",\n        \"ingredients\": [\"tuna\", \"mayo\", \"cucumber\", \"carrots\", \"lettuce\", \"wraps\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Baked Chicken and Roasted Vegetables\",\n        \"ingredients\": [\"chicken breast\", \"carrots\", \"brussels sprouts\", \"olive oil\", \"salt\", \"pepper\"]\n    }\n]\n\nLet me know if you need any adjustments or changes!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 2,
+        "meal_types": [
+          "breakfast",
+          "dinner",
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "pantry_items_in_shopping_list": []
+      }
     },
     {
-      "iteration": 5,
-      "timeout": false,
-      "error": "EOF when reading a line",
-      "meal_time": null,
-      "shopping_time": null,
-      "total_time": null,
-      "raw_meal_plan": "None",
-      "raw_shopping_list": "None",
-      "normalized_shopping_list": [],
-      "is_ingredient_list": false,
-      "shopping_list_length_est": 1
+      "case": "two_day_all_meals",
+      "repeat": 2,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "breakfast",
+          "meal_name": "Scrambled Eggs with Toast and Fresh Fruit",
+          "ingredients": [
+            "eggs",
+            "bread",
+            "butter",
+            "fresh fruit",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Chicken Sandwich with Carrot Sticks and Hummus",
+          "ingredients": [
+            "chicken breast",
+            "bread",
+            "vegetable oil",
+            "mayo",
+            "lettuce",
+            "tomato",
+            "carrots"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Spaghetti Bolognese with Garlic Bread",
+          "ingredients": [
+            "spaghetti",
+            "ground beef",
+            "tomato sauce",
+            "onion",
+            "garlic",
+            "salt",
+            "olive oil"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "breakfast",
+          "meal_name": "Avocado Toast with Poached Eggs and Cherry Tomatoes",
+          "ingredients": [
+            "avocado",
+            "bread",
+            "eggs",
+            "cherry tomatoes",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "lunch",
+          "meal_name": "Turkey and Cheese Wrap with Mixed Greens",
+          "ingredients": [
+            "turkey breast",
+            "cheese",
+            "tortilla",
+            "mixed greens",
+            "mayo",
+            "tomato"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Baked Salmon with Roasted Vegetables and Quinoa",
+          "ingredients": [
+            "salmon fillet",
+            "quinoa",
+            "mixed vegetables",
+            "olive oil",
+            "salt",
+            "pepper"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "eggs",
+        "bread",
+        "butter",
+        "fresh fruit",
+        "pepper",
+        "chicken breast",
+        "vegetable oil",
+        "mayo",
+        "lettuce",
+        "tomato",
+        "carrots",
+        "spaghetti",
+        "ground beef",
+        "tomato sauce",
+        "onion",
+        "avocado",
+        "cherry tomatoes",
+        "turkey breast",
+        "cheese",
+        "tortilla",
+        "mixed greens",
+        "salmon fillet",
+        "quinoa",
+        "mixed vegetables"
+      ],
+      "turns_used": 3,
+      "load_time": 3.081609010696411,
+      "meal_time": 58.63799023628235,
+      "shopping_time": 0.00013899803161621094,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 5,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 8.296968221664429,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 2 days",
+        "Answer:You would like to plan meals for 2 days. That's a great start!\n\nCan you please tell me what kind of meals you're interested in? Are you open to trying new recipes or do you have a specific cuisine or dietary restriction in mind (e.g. vegetarian, gluten-free, etc.)?",
+        "You: Breakfast, lunch and dinner. No dietary restrictions.",
+        "Answer:So, I understand that you would like to have a meal plan with three meals (breakfast, lunch, and dinner) for the next 2 days.\n\nCan you please give me an idea of your personal preferences regarding the types of meals you would like to have? For example, would you like me to suggest recipes that are:\n\n* Quick and easy to prepare?\n* Healthy and nutritious?\n* Hearty and filling?\n* Something else (please specify)?\n\nThis will help me provide a more tailored meal plan for you.",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your meal plan for 2 days:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Scrambled Eggs with Toast and Fresh Fruit\",\n    \"ingredients\": [\"eggs\", \"bread\", \"butter\", \"fresh fruit\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Grilled Chicken Sandwich with Carrot Sticks and Hummus\",\n    \"ingredients\": [\"chicken breast\", \"bread\", \"vegetable oil\", \"mayo\", \"lettuce\", \"tomato\", \"carrots\"]\n  },\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Spaghetti Bolognese with Garlic Bread\",\n    \"ingredients\": [\"spaghetti\", \"ground beef\", \"tomato sauce\", \"onion\", \"garlic\", \"salt\", \"olive oil\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"breakfast\",\n    \"meal_name\": \"Avocado Toast with Poached Eggs and Cherry Tomatoes\",\n    \"ingredients\": [\"avocado\", \"bread\", \"eggs\", \"cherry tomatoes\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Turkey and Cheese Wrap with Mixed Greens\",\n    \"ingredients\": [\"turkey breast\", \"cheese\", \"tortilla\", \"mixed greens\", \"mayo\", \"tomato\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Baked Salmon with Roasted Vegetables and Quinoa\",\n    \"ingredients\": [\"salmon fillet\", \"quinoa\", \"mixed vegetables\", \"olive oil\", \"salt\", \"pepper\"]\n  }\n]\n\nPlease note that this meal plan is just a suggestion, and you can adjust it according to your personal preferences and ingredient availability.",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 2,
+        "meal_types": [
+          "breakfast",
+          "dinner",
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "pantry_items_in_shopping_list": []
+      }
+    },
+    {
+      "case": "two_day_all_meals",
+      "repeat": 3,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "breakfast",
+          "meal_name": "Eggs and Bacon",
+          "ingredients": [
+            "eggs",
+            "bacon",
+            "bread",
+            "cheese",
+            "milk",
+            "lettuce",
+            "tomato"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Chicken Sandwich",
+          "ingredients": [
+            "chicken breast",
+            "hamburger buns",
+            "cheese",
+            "lettuce",
+            "tomato",
+            "mayonnaise",
+            "pickles"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Spaghetti with Meatballs",
+          "ingredients": [
+            "spaghetti",
+            "ground beef",
+            "tomato sauce",
+            "onion",
+            "garlic",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "breakfast",
+          "meal_name": "Avocado Toast",
+          "ingredients": [
+            "avocado",
+            "bread",
+            "eggs",
+            "salt",
+            "pepper",
+            "red pepper flakes",
+            "garlic"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "lunch",
+          "meal_name": "Turkey and Cheese Wrap",
+          "ingredients": [
+            "turkey breast",
+            "tortilla",
+            "cheese",
+            "lettuce",
+            "tomato",
+            "mayonnaise",
+            "ketchup"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Baked Salmon with Roasted Vegetables",
+          "ingredients": [
+            "salmon fillet",
+            "broccoli",
+            "carrots",
+            "brussels sprouts",
+            "olive oil",
+            "salt",
+            "pepper"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "eggs",
+        "bacon",
+        "bread",
+        "cheese",
+        "milk",
+        "lettuce",
+        "tomato",
+        "chicken breast",
+        "hamburger buns",
+        "mayonnaise",
+        "pickles",
+        "spaghetti",
+        "ground beef",
+        "tomato sauce",
+        "onion",
+        "pepper",
+        "avocado",
+        "red pepper flakes",
+        "turkey breast",
+        "tortilla",
+        "ketchup",
+        "salmon fillet",
+        "broccoli",
+        "carrots",
+        "brussels sprouts"
+      ],
+      "turns_used": 3,
+      "load_time": 3.201190948486328,
+      "meal_time": 48.73394703865051,
+      "shopping_time": 0.0001373291015625,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 5,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 8.538986921310425,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 2 days",
+        "Answer:Let's plan meals for the next 2 days.\n\nHow many people are you planning to cook for?",
+        "You: Breakfast, lunch and dinner. No dietary restrictions.",
+        "Answer:Can you please tell me about your food preferences? Do you have any favorite cuisines (e.g. Italian, Indian, Mexican) or dishes (e.g. pasta, curry, tacos)?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your meal plan for the next 2 days:\n\n[\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"breakfast\",\n        \"meal_name\": \"Eggs and Bacon\",\n        \"ingredients\": [\"eggs\", \"bacon\", \"bread\", \"cheese\", \"milk\", \"lettuce\", \"tomato\"]\n    },\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"lunch\",\n        \"meal_name\": \"Grilled Chicken Sandwich\",\n        \"ingredients\": [\"chicken breast\", \"hamburger buns\", \"cheese\", \"lettuce\", \"tomato\", \"mayonnaise\", \"pickles\"]\n    },\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Spaghetti with Meatballs\",\n        \"ingredients\": [\"spaghetti\", \"ground beef\", \"tomato sauce\", \"onion\", \"garlic\", \"salt\", \"pepper\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"breakfast\",\n        \"meal_name\": \"Avocado Toast\",\n        \"ingredients\": [\"avocado\", \"bread\", \"eggs\", \"salt\", \"pepper\", \"red pepper flakes\", \"garlic\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"lunch\",\n        \"meal_name\": \"Turkey and Cheese Wrap\",\n        \"ingredients\": [\"turkey breast\", \"tortilla\", \"cheese\", \"lettuce\", \"tomato\", \"mayonnaise\", \"ketchup\"]\n    },\n    {\n        \"day\": \"Day 2\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Baked Salmon with Roasted Vegetables\",\n        \"ingredients\": [\"salmon fillet\", \"broccoli\", \"carrots\", \"brussels sprouts\", \"olive oil\", \"salt\", \"pepper\"]\n    }\n]\n\nPlease note that this is a basic meal plan and the ingredients are not exhaustive. You may need to add additional items depending on your specific needs.",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 2,
+        "meal_types": [
+          "breakfast",
+          "dinner",
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "pantry_items_in_shopping_list": []
+      }
+    },
+    {
+      "case": "gluten_free_1day",
+      "repeat": 1,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Gluten-Free Grilled Chicken Wrap",
+          "ingredients": [
+            "Grilled chicken breast",
+            "Gluten-free tortilla",
+            "Avocado",
+            "Lettuce",
+            "Tomato",
+            "Gluten-free mayo",
+            "Cucumber"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Baked Salmon with Quinoa and Roasted Vegetables",
+          "ingredients": [
+            "Salmon fillet",
+            "Gluten-free quinoa",
+            "Brussels sprouts",
+            "Sweet potatoes",
+            "Olive oil",
+            "Salt",
+            "Pepper"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "Grilled chicken breast",
+        "Gluten-free tortilla",
+        "Avocado",
+        "Lettuce",
+        "Tomato",
+        "Gluten-free mayo",
+        "Cucumber",
+        "Salmon fillet",
+        "Gluten-free quinoa",
+        "Brussels sprouts",
+        "Sweet potatoes",
+        "Olive oil",
+        "Salt",
+        "Pepper"
+      ],
+      "turns_used": 3,
+      "load_time": 3.098119020462036,
+      "meal_time": 30.703890800476074,
+      "shopping_time": 0.0001323223114013672,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 5,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 6.390382766723633,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 1 day",
+        "Answer:You'd like to plan meals for 1 day. Can you please tell me a bit about what you're in the mood for? Are you looking for something light and healthy, or something more indulgent?",
+        "You: I have celiac disease so everything must be gluten free. Lunch and dinner only.",
+        "Answer:I'll make sure to suggest gluten-free options for you. Since you only need plans for lunch and dinner, I'll focus on that.\n\nCan you please confirm if you have any dietary restrictions or preferences beyond gluten-free, such as vegetarian, vegan, dairy-free, or any specific allergies?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 1-day meal plan:\n\n[\n  {\"day\": \"Day 1\", \"meal_type\": \"lunch\", \"meal_name\": \"Gluten-Free Grilled Chicken Wrap\", \"ingredients\": [\"Grilled chicken breast\", \"Gluten-free tortilla\", \"Avocado\", \"Lettuce\", \"Tomato\", \"Gluten-free mayo\", \"Cucumber\"]},\n  {\"day\": \"Day 1\", \"meal_type\": \"dinner\", \"meal_name\": \"Baked Salmon with Quinoa and Roasted Vegetables\", \"ingredients\": [\"Salmon fillet\", \"Gluten-free quinoa\", \"Brussels sprouts\", \"Sweet potatoes\", \"Olive oil\", \"Salt\", \"Pepper\"]}\n]\n\nPlease note that I've only suggested gluten-free ingredients and options. If you have any questions or concerns, feel free to ask!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": false,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": false
+      },
+      "details": {
+        "days": 1,
+        "meal_types": [
+          "dinner",
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": [
+          "Sweet potatoes"
+        ]
+      }
+    },
+    {
+      "case": "gluten_free_1day",
+      "repeat": 2,
+      "meal_plan": [
+        {
+          "day": "1 day",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Chicken and Avocado Salad",
+          "ingredients": [
+            "grilled chicken breast",
+            "avocado",
+            "mixed greens",
+            "juice of 1 lime",
+            "salt",
+            "pepper",
+            "gluten-free balsamic vinaigrette"
+          ]
+        },
+        {
+          "day": "1 day",
+          "meal_type": "dinner",
+          "meal_name": "Quinoa and Black Bean Bowl with Roasted Vegetables",
+          "ingredients": [
+            "cooked quinoa",
+            "cooked black beans",
+            "roasted sweet potato",
+            "roasted Brussels sprouts",
+            "olive oil",
+            "salt",
+            "pepper"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "grilled chicken breast",
+        "avocado",
+        "mixed greens",
+        "juice of 1 lime",
+        "salt",
+        "pepper",
+        "gluten-free balsamic vinaigrette",
+        "cooked quinoa",
+        "cooked black beans",
+        "roasted sweet potato",
+        "roasted Brussels sprouts",
+        "olive oil"
+      ],
+      "turns_used": 3,
+      "load_time": 3.0776467323303223,
+      "meal_time": 32.93128180503845,
+      "shopping_time": 0.0001289844512939453,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 5,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 6.502037048339844,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 1 day",
+        "Answer:You would like to plan meals for 1 day. \n\nCan you please tell me what kind of meals you're interested in planning? Are you looking for something vegetarian, gluten-free, or perhaps a specific cuisine (e.g. Italian, Mexican)?",
+        "You: I have celiac disease so everything must be gluten free. Lunch and dinner only.",
+        "Answer:I've got that noted. Since you have celiac disease, I'll make sure to plan gluten-free meals for you. \n\nFor lunch and dinner, can you please specify any dietary restrictions or preferences, such as dairy-free, nut-free, or any food allergies?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 1-day meal plan:\n\n[\n  {\n    \"day\": \"1 day\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Grilled Chicken and Avocado Salad\",\n    \"ingredients\": [\"grilled chicken breast\", \"avocado\", \"mixed greens\", \"juice of 1 lime\", \"salt\", \"pepper\", \"gluten-free balsamic vinaigrette\"]\n  },\n  {\n    \"day\": \"1 day\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Quinoa and Black Bean Bowl with Roasted Vegetables\",\n    \"ingredients\": [\"cooked quinoa\", \"cooked black beans\", \"roasted sweet potato\", \"roasted Brussels sprouts\", \"olive oil\", \"salt\", \"pepper\"]\n  }\n]\n\nPlease note that I've avoided any gluten-containing ingredients and provided alternatives that are gluten-free. If you have any questions or concerns, feel free to ask!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 1,
+        "meal_types": [
+          "dinner",
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": []
+      }
+    },
+    {
+      "case": "gluten_free_1day",
+      "repeat": 3,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Chicken and Avocado Salad",
+          "ingredients": [
+            "Grilled chicken breast",
+            "Mixed greens",
+            "Avocado",
+            "Gluten-free balsamic vinaigrette",
+            "Tomatoes",
+            "Red onion",
+            "Cilantro"
+          ]
+        },
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "Baked Salmon with Quinoa and Steamed Broccoli",
+          "ingredients": [
+            "Salmon fillet",
+            "Quinoa",
+            "Broccoli",
+            "Olive oil",
+            "Salt",
+            "Pepper",
+            "Lemon"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "Grilled chicken breast",
+        "Mixed greens",
+        "Avocado",
+        "Gluten-free balsamic vinaigrette",
+        "Tomatoes",
+        "Red onion",
+        "Cilantro",
+        "Salmon fillet",
+        "Quinoa",
+        "Broccoli",
+        "Olive oil",
+        "Salt",
+        "Pepper",
+        "Lemon"
+      ],
+      "turns_used": 3,
+      "load_time": 3.1300840377807617,
+      "meal_time": 36.15871620178223,
+      "shopping_time": 0.00025200843811035156,
+      "judge": {
+        "diet_compliant": false,
+        "matches_request": false,
+        "coherent": true,
+        "score": 2,
+        "issues": [
+          "Gluten-free balsamic vinaigrette is not enough to make the entire meal gluten-free, as the salad contains mixed greens which may contain gluten. Quinoa is not gluten-free either."
+        ],
+        "passed": false
+      },
+      "judge_time": 9.924937009811401,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 1 day",
+        "Answer:You want to plan meals for only 1 day. \n\nLet's plan a personalized meal plan for you. Can you please tell me about your dietary preferences? Are you vegetarian, gluten-free, or have any food allergies?",
+        "You: I have celiac disease so everything must be gluten free. Lunch and dinner only.",
+        "Answer:I've noted that you have celiac disease and require gluten-free options. Since you only need lunch and dinner plans, I'll focus on those.\n\nCan you please tell me about your taste preferences? Do you have any favorite cuisines (e.g., Italian, Mexican, Indian, etc.) or specific ingredients you dislike or love?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your personalized 1-day gluten-free meal plan:\n\n[\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"lunch\",\n        \"meal_name\": \"Grilled Chicken and Avocado Salad\",\n        \"ingredients\": [\n            \"Grilled chicken breast\",\n            \"Mixed greens\",\n            \"Avocado\",\n            \"Gluten-free balsamic vinaigrette\",\n            \"Tomatoes\",\n            \"Red onion\",\n            \"Cilantro\"\n        ]\n    },\n    {\n        \"day\": \"Day 1\",\n        \"meal_type\": \"dinner\",\n        \"meal_name\": \"Baked Salmon with Quinoa and Steamed Broccoli\",\n        \"ingredients\": [\n            \"Salmon fillet\",\n            \"Quinoa\",\n            \"Broccoli\",\n            \"Olive oil\",\n            \"Salt\",\n            \"Pepper\",\n            \"Lemon\"\n        ]\n    }\n]\n\nPlease note that I've chosen ingredients that are naturally gluten-free or have a gluten-free alternative. This meal plan is tailored to your specific requirements, but if you have any concerns or questions, feel free to ask!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 1,
+        "meal_types": [
+          "dinner",
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": []
+      }
+    },
+    {
+      "case": "dinner_only_4day_stocked_pantry",
+      "repeat": 1,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "One-Pot Pasta with Tomato Sauce",
+          "ingredients": [
+            "pasta",
+            "canned tomatoes",
+            "olive oil",
+            "onion",
+            "garlic",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Tacos with Ground Beef and Toppings",
+          "ingredients": [
+            "ground beef",
+            "tortillas",
+            "canned beans",
+            "cheese",
+            "lettuce",
+            "tomato",
+            "salsa"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "dinner",
+          "meal_name": "Baked Chicken Fajitas with Bell Peppers",
+          "ingredients": [
+            "chicken breast",
+            "bell peppers",
+            "onion",
+            "fajita seasoning",
+            "tortillas",
+            "shredded cheese",
+            "sour cream"
+          ]
+        },
+        {
+          "day": "Day 4",
+          "meal_type": "dinner",
+          "meal_name": "Quick and Easy Stir-Fry with Chicken and Vegetables",
+          "ingredients": [
+            "chicken breast",
+            "stir-fry vegetables",
+            "soy sauce",
+            "olive oil",
+            "garlic",
+            "ginger",
+            "rice"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "pepper",
+        "ground beef",
+        "tortillas",
+        "canned beans",
+        "cheese",
+        "lettuce",
+        "tomato",
+        "salsa",
+        "bell peppers",
+        "fajita seasoning",
+        "shredded cheese",
+        "sour cream",
+        "stir-fry vegetables",
+        "soy sauce",
+        "ginger"
+      ],
+      "turns_used": 3,
+      "load_time": 2.9431512355804443,
+      "meal_time": 43.97800803184509,
+      "shopping_time": 0.0001220703125,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 4,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 7.362168073654175,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 4 days",
+        "Answer:You want to plan your meals for 4 days. Okay! Can you please tell me a bit more about your dietary preferences? Do you have any specific requirements or restrictions, such as vegetarian, gluten-free, or low-carb?",
+        "You: Dinner only, quick weeknight meals.",
+        "Answer:You want a meal plan for dinner only and you're looking for quick weeknight meals. Got it!\n\nCan you please provide me with some more information about your taste preferences? Do you have a favorite cuisine or type of food (e.g. Italian, Mexican, Asian-inspired, etc.)?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 4-day dinner meal plan for quick weeknight meals:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"One-Pot Pasta with Tomato Sauce\",\n    \"ingredients\": [\"pasta\", \"canned tomatoes\", \"olive oil\", \"onion\", \"garlic\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Tacos with Ground Beef and Toppings\",\n    \"ingredients\": [\"ground beef\", \"tortillas\", \"canned beans\", \"cheese\", \"lettuce\", \"tomato\", \"salsa\"]\n  },\n  {\n    \"day\": \"Day 3\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Baked Chicken Fajitas with Bell Peppers\",\n    \"ingredients\": [\"chicken breast\", \"bell peppers\", \"onion\", \"fajita seasoning\", \"tortillas\", \"shredded cheese\", \"sour cream\"]\n  },\n  {\n    \"day\": \"Day 4\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Quick and Easy Stir-Fry with Chicken and Vegetables\",\n    \"ingredients\": [\"chicken breast\", \"stir-fry vegetables\", \"soy sauce\", \"olive oil\", \"garlic\", \"ginger\", \"rice\"]\n  }\n]\n\nI hope you enjoy these meal ideas! Let me know if you need any substitutions or modifications.",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 4,
+        "meal_types": [
+          "dinner"
+        ],
+        "meals_over_ingredient_limit": [],
+        "pantry_items_in_shopping_list": []
+      }
+    },
+    {
+      "case": "dinner_only_4day_stocked_pantry",
+      "repeat": 2,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "One-Pot Pasta with Tomato Sauce",
+          "ingredients": [
+            "pasta",
+            "canned tomato sauce",
+            "ground beef",
+            "onion",
+            "garlic",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Tacos with Seasoned Ground Beef and Toppings",
+          "ingredients": [
+            "ground beef",
+            "taco seasoning",
+            "tortillas",
+            "shredded cheese",
+            "lettuce",
+            "tomatoes",
+            "salsa"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "dinner",
+          "meal_name": "Oven-Baked Chicken Fajitas",
+          "ingredients": [
+            "boneless chicken breasts",
+            "fajita seasoning",
+            "bell peppers",
+            "onion",
+            "tortillas",
+            "shredded cheese",
+            "sour cream"
+          ]
+        },
+        {
+          "day": "Day 4",
+          "meal_type": "dinner",
+          "meal_name": "Quick Beef and Broccoli Stir-Fry",
+          "ingredients": [
+            "stir-fry sauce",
+            "beef strips",
+            "broccoli florets",
+            "soy sauce",
+            "garlic",
+            "ginger",
+            "rice"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "canned tomato sauce",
+        "ground beef",
+        "pepper",
+        "taco seasoning",
+        "tortillas",
+        "shredded cheese",
+        "lettuce",
+        "tomatoes",
+        "salsa",
+        "boneless chicken breasts",
+        "fajita seasoning",
+        "bell peppers",
+        "sour cream",
+        "stir-fry sauce",
+        "beef strips",
+        "broccoli florets",
+        "soy sauce",
+        "ginger"
+      ],
+      "turns_used": 3,
+      "load_time": 2.79644513130188,
+      "meal_time": 44.496001958847046,
+      "shopping_time": 0.0001418590545654297,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 4,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 7.532073020935059,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 4 days",
+        "Answer:You want to plan meals for 4 days. That's a great start!\n\nCan you please tell me a bit more about your dietary preferences and restrictions? Do you have any allergies or dislikes when it comes to food?",
+        "You: Dinner only, quick weeknight meals.",
+        "Answer:So, you're looking for quick weeknight dinner ideas. Got it!\n\nCan you please specify what type of cuisine you're in the mood for? For example, Italian, Mexican, Indian, Asian, or something else?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is a 4-day dinner meal plan with quick weeknight meal ideas:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"One-Pot Pasta with Tomato Sauce\",\n    \"ingredients\": [\"pasta\", \"canned tomato sauce\", \"ground beef\", \"onion\", \"garlic\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Tacos with Seasoned Ground Beef and Toppings\",\n    \"ingredients\": [\"ground beef\", \"taco seasoning\", \"tortillas\", \"shredded cheese\", \"lettuce\", \"tomatoes\", \"salsa\"]\n  },\n  {\n    \"day\": \"Day 3\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Oven-Baked Chicken Fajitas\",\n    \"ingredients\": [\"boneless chicken breasts\", \"fajita seasoning\", \"bell peppers\", \"onion\", \"tortillas\", \"shredded cheese\", \"sour cream\"]\n  },\n  {\n    \"day\": \"Day 4\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Quick Beef and Broccoli Stir-Fry\",\n    \"ingredients\": [\"stir-fry sauce\", \"beef strips\", \"broccoli florets\", \"soy sauce\", \"garlic\", \"ginger\", \"rice\"]\n  }\n]\n\nPlease note that these meals are designed to be quick and easy to prepare, but you can always adjust the ingredients or add more to suit your personal taste preferences.",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": false,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "shopping_list_excludes_pantry": false
+      },
+      "details": {
+        "days": 4,
+        "meal_types": [
+          "dinner"
+        ],
+        "meals_over_ingredient_limit": [],
+        "pantry_items_in_shopping_list": [
+          "boneless chicken breasts"
+        ]
+      }
+    },
+    {
+      "case": "dinner_only_4day_stocked_pantry",
+      "repeat": 3,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "dinner",
+          "meal_name": "One-Pot Pasta with Tomato Sauce and Veggies",
+          "ingredients": [
+            "pasta",
+            "canned crushed tomatoes",
+            "onion",
+            "garlic",
+            "olive oil",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "dinner",
+          "meal_name": "Tacos with Ground Beef, Lettuce, and Cheese",
+          "ingredients": [
+            "ground beef",
+            "tortillas",
+            "shredded cheese",
+            "lettuce",
+            "tomatoes",
+            "canned black beans",
+            "olive oil"
+          ]
+        },
+        {
+          "day": "Day 3",
+          "meal_type": "dinner",
+          "meal_name": "Baked Chicken with Roasted Veggies and Quinoa",
+          "ingredients": [
+            "chicken breasts",
+            "quinoa",
+            "broccoli",
+            "carrots",
+            "olive oil",
+            "salt",
+            "pepper"
+          ]
+        },
+        {
+          "day": "Day 4",
+          "meal_type": "dinner",
+          "meal_name": "Stir-Fried Shrimp and Veggies with Rice",
+          "ingredients": [
+            "shrimp",
+            "cooked rice",
+            "frozen mixed veggies",
+            "soy sauce",
+            "olive oil",
+            "salt",
+            "pepper"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "canned crushed tomatoes",
+        "pepper",
+        "ground beef",
+        "tortillas",
+        "shredded cheese",
+        "lettuce",
+        "tomatoes",
+        "canned black beans",
+        "chicken breasts",
+        "quinoa",
+        "broccoli",
+        "carrots",
+        "shrimp",
+        "cooked rice",
+        "frozen mixed veggies",
+        "soy sauce"
+      ],
+      "turns_used": 3,
+      "load_time": 2.773928165435791,
+      "meal_time": 42.35604500770569,
+      "shopping_time": 0.00012922286987304688,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 4,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 7.5530078411102295,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 4 days",
+        "Answer:You want to plan meals for 4 days. That's a great start!\n\nTo better assist you, I have a few questions to understand your preferences.\n\nCan you please tell me what kind of dietary restrictions or preferences do you have? For example, are you vegetarian, gluten-free, dairy-free, or do you have any specific allergies?",
+        "You: Dinner only, quick weeknight meals.",
+        "Answer:So, you're looking for quick and easy dinner ideas for 4 days, correct?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your meal plan:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"One-Pot Pasta with Tomato Sauce and Veggies\",\n    \"ingredients\": [\"pasta\", \"canned crushed tomatoes\", \"onion\", \"garlic\", \"olive oil\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Tacos with Ground Beef, Lettuce, and Cheese\",\n    \"ingredients\": [\"ground beef\", \"tortillas\", \"shredded cheese\", \"lettuce\", \"tomatoes\", \"canned black beans\", \"olive oil\"]\n  },\n  {\n    \"day\": \"Day 3\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Baked Chicken with Roasted Veggies and Quinoa\",\n    \"ingredients\": [\"chicken breasts\", \"quinoa\", \"broccoli\", \"carrots\", \"olive oil\", \"salt\", \"pepper\"]\n  },\n  {\n    \"day\": \"Day 4\",\n    \"meal_type\": \"dinner\",\n    \"meal_name\": \"Stir-Fried Shrimp and Veggies with Rice\",\n    \"ingredients\": [\"shrimp\", \"cooked rice\", \"frozen mixed veggies\", \"soy sauce\", \"olive oil\", \"salt\", \"pepper\"]\n  }\n]\n\nLet me know if you need any modifications or substitutions!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": false,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "shopping_list_excludes_pantry": false
+      },
+      "details": {
+        "days": 4,
+        "meal_types": [
+          "dinner"
+        ],
+        "meals_over_ingredient_limit": [],
+        "pantry_items_in_shopping_list": [
+          "chicken breasts",
+          "cooked rice"
+        ]
+      }
+    },
+    {
+      "case": "pescatarian_2day_lunch",
+      "repeat": 1,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Tuna Salad Sandwich",
+          "ingredients": [
+            "tuna canned in water",
+            "mayonnaise",
+            "onion",
+            "cucumber",
+            "whole wheat bread",
+            "lettuce",
+            "tomato"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Salmon Wrap",
+          "ingredients": [
+            "salmon fillet",
+            "hummus",
+            "cabbage",
+            "mixed greens",
+            "whole wheat wrap",
+            "carrot",
+            "avocado"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "tuna canned in water",
+        "mayonnaise",
+        "onion",
+        "cucumber",
+        "whole wheat bread",
+        "lettuce",
+        "tomato",
+        "salmon fillet",
+        "hummus",
+        "cabbage",
+        "mixed greens",
+        "whole wheat wrap",
+        "carrot",
+        "avocado"
+      ],
+      "turns_used": 3,
+      "load_time": 2.8280696868896484,
+      "meal_time": 36.783371925354004,
+      "shopping_time": 0.00013399124145507812,
+      "judge": {
+        "diet_compliant": true,
+        "matches_request": true,
+        "coherent": true,
+        "score": 5,
+        "issues": [],
+        "passed": true
+      },
+      "judge_time": 6.335139036178589,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 2 days",
+        "Answer:You want to plan meals for 2 days. That's a great start! Can you please tell me about your dietary restrictions or preferences? Do you have any food allergies or dislikes that I should keep in mind while planning the meals?",
+        "You: Pescatarian, lunch only. I don't eat shellfish.",
+        "Answer:As a pescatarian, I'll make sure to exclude shellfish and other non-pescatarian ingredients from the meal plan. Since you only need lunch options, I'll focus on planning those for you.\n\nCan you please give me an idea of your preferred cuisine or dishes? For example, do you have a favorite type of cuisine (e.g. Italian, Mexican, Indian), or any specific dishes in mind (e.g. sandwiches, salads, wraps)? This will help me generate more tailored options for you.",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 2-day pescatarian lunch meal plan:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Tuna Salad Sandwich\",\n    \"ingredients\": [\"tuna canned in water\", \"mayonnaise\", \"onion\", \"cucumber\", \"whole wheat bread\", \"lettuce\", \"tomato\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Grilled Salmon Wrap\",\n    \"ingredients\": [\"salmon fillet\", \"hummus\", \"cabbage\", \"mixed greens\", \"whole wheat wrap\", \"carrot\", \"avocado\"]\n  }\n]\n\nPlease note that these ingredients are essential for each meal and are carefully selected to meet your pescatarian and dietary restrictions. Enjoy your meals!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 2,
+        "meal_types": [
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": []
+      }
+    },
+    {
+      "case": "pescatarian_2day_lunch",
+      "repeat": 2,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Tuna Salad Wrap",
+          "ingredients": [
+            "tuna",
+            "mayonnaise",
+            "cucumber",
+            "lettuce",
+            "tomato",
+            "whole wheat wrap",
+            "mustard"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Salmon and Avocado Sandwich",
+          "ingredients": [
+            "salmon",
+            "avocado",
+            "whole wheat bread",
+            "lemon",
+            "salt",
+            "pepper",
+            "mayonnaise"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "tuna",
+        "mayonnaise",
+        "cucumber",
+        "lettuce",
+        "tomato",
+        "whole wheat wrap",
+        "mustard",
+        "salmon",
+        "avocado",
+        "whole wheat bread",
+        "salt",
+        "pepper"
+      ],
+      "turns_used": 3,
+      "load_time": 2.8861501216888428,
+      "meal_time": 31.55573797225952,
+      "shopping_time": 5.507469177246094e-05,
+      "judge": {
+        "diet_compliant": false,
+        "matches_request": false,
+        "coherent": true,
+        "score": 2,
+        "issues": [
+          "The meal plan includes shellfish (tuna) and fish (salmon), which the user explicitly stated they don't eat. The plan also only provides lunch options, but the user asked for pescatarian, which implies some non-meat options."
+        ],
+        "passed": false
+      },
+      "judge_time": 10.97823190689087,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 2 days",
+        "Answer:You need a meal plan for 2 days. \n\nCan you please tell me if you have any dietary restrictions or preferences, such as vegetarian, gluten-free, or any specific allergies?",
+        "You: Pescatarian, lunch only. I don't eat shellfish.",
+        "Answer:As a pescatarian, you don't eat meat from land animals, but you do eat fish and seafood. I'll make sure to exclude shellfish from the meal plan.\n\nCan you please tell me what type of cuisine you prefer for your lunches? For example, Italian, Mexican, Indian, etc.?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 2-day pescatarian lunch meal plan:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Tuna Salad Wrap\",\n    \"ingredients\": [\"tuna\", \"mayonnaise\", \"cucumber\", \"lettuce\", \"tomato\", \"whole wheat wrap\", \"mustard\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Grilled Salmon and Avocado Sandwich\",\n    \"ingredients\": [\"salmon\", \"avocado\", \"whole wheat bread\", \"lemon\", \"salt\", \"pepper\", \"mayonnaise\"]\n  }\n]\n\nPlease note that these ingredients are the essential ones for the meal and may not be exhaustive. You can adjust according to your taste and availability of ingredients.",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 2,
+        "meal_types": [
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": []
+      }
+    },
+    {
+      "case": "pescatarian_2day_lunch",
+      "repeat": 3,
+      "meal_plan": [
+        {
+          "day": "Day 1",
+          "meal_type": "lunch",
+          "meal_name": "Tuna Salad Sandwich",
+          "ingredients": [
+            "tuna",
+            "mayonnaise",
+            "onion",
+            "lettuce",
+            "whole wheat bread",
+            "tomato",
+            "cucumber"
+          ]
+        },
+        {
+          "day": "Day 2",
+          "meal_type": "lunch",
+          "meal_name": "Grilled Salmon Wrap",
+          "ingredients": [
+            "salmon",
+            "hummus",
+            "avocado",
+            "lettuce",
+            "whole wheat tortilla",
+            "red bell pepper",
+            "black olives"
+          ]
+        }
+      ],
+      "shopping_list": [
+        "tuna",
+        "mayonnaise",
+        "onion",
+        "lettuce",
+        "whole wheat bread",
+        "tomato",
+        "cucumber",
+        "salmon",
+        "hummus",
+        "avocado",
+        "whole wheat tortilla",
+        "red bell pepper",
+        "black olives"
+      ],
+      "turns_used": 3,
+      "load_time": 2.686974287033081,
+      "meal_time": 28.944081783294678,
+      "shopping_time": 0.00012302398681640625,
+      "judge": {
+        "diet_compliant": false,
+        "matches_request": false,
+        "coherent": true,
+        "score": 2,
+        "issues": [
+          "The meal plan includes shellfish (tuna) and fish (salmon), which the user explicitly stated they don't eat. The plan also only provides lunch options, but the user asked for pescatarian, which implies some non-meat options."
+        ],
+        "passed": false
+      },
+      "judge_time": 11.09557294845581,
+      "transcript": [
+        "Hi I am your meal planning assistant. How many days do you want to prepare for meals?",
+        "You: 2 days",
+        "Answer:Would you like to plan meals for a specific diet type, such as vegetarian, gluten-free, or dairy-free?",
+        "You: Pescatarian, lunch only. I don't eat shellfish.",
+        "Answer:So, you're looking for a 2-day pescatarian lunch meal plan, excluding shellfish. Can you give me an idea of your dietary preferences? For example, do you have a preferred cuisine (e.g. Italian, Mexican, Asian) or do you have any specific ingredient allergies or dislikes?",
+        "You: Please give me the meal plan now.",
+        "Answer:Here is your 2-day pescatarian lunch meal plan:\n\n[\n  {\n    \"day\": \"Day 1\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Tuna Salad Sandwich\",\n    \"ingredients\": [\"tuna\", \"mayonnaise\", \"onion\", \"lettuce\", \"whole wheat bread\", \"tomato\", \"cucumber\"]\n  },\n  {\n    \"day\": \"Day 2\",\n    \"meal_type\": \"lunch\",\n    \"meal_name\": \"Grilled Salmon Wrap\",\n    \"ingredients\": [\"salmon\", \"hummus\", \"avocado\", \"lettuce\", \"whole wheat tortilla\", \"red bell pepper\", \"black olives\"]\n  }\n]\n\nPlease let me know if you need any modifications or have any questions!",
+        "Meal plan generated."
+      ],
+      "error": null,
+      "passed": true,
+      "checks": {
+        "valid_plan": true,
+        "days": true,
+        "meal_types": true,
+        "max_ingredients_per_meal": true,
+        "forbidden_ingredients": true,
+        "shopping_list_excludes_pantry": true
+      },
+      "details": {
+        "days": 2,
+        "meal_types": [
+          "lunch"
+        ],
+        "meals_over_ingredient_limit": [],
+        "forbidden_hits": [],
+        "pantry_items_in_shopping_list": []
+      }
     }
   ]
 }
