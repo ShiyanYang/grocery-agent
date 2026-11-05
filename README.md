@@ -10,7 +10,7 @@ that skips what's already in your pantry. It runs Llama 3 8B on-device with [MLX
 Requires an **Apple Silicon Mac** (MLX) and ~10 GB free disk space.
 
 ```bash
-git clone https://github.com/ShiyanYang/receipt_agent.git grocery_agent
+git clone https://github.com/ShiyanYang/grocery-agent.git grocery_agent
 cd grocery_agent
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
