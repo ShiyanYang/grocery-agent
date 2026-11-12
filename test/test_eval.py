@@ -18,7 +18,6 @@ CASE = {
     "expect": {
         "days": 2,
         "meal_types": ["breakfast", "dinner"],
-        "max_ingredients_per_meal": 3,
         "forbidden_ingredients": ["egg", "chicken"],
         "shopping_list_excludes_pantry": True,
     },
@@ -74,11 +73,17 @@ def test_score_detects_wrong_days_and_meal_types():
     assert not checks["meal_types"]
 
 
-def test_score_detects_ingredient_limit_and_pantry_leak():
-    plan = GOOD_PLAN + [{"day": "Day 2", "meal_type": "dinner", "meal_name": "Big", "ingredients": list("abcd")}]
-    result = score_run(CASE, plan, ["salt "])
-    assert not result["checks"]["max_ingredients_per_meal"]
+def test_score_detects_pantry_leak():
+    result = score_run(CASE, GOOD_PLAN, ["salt "])
     assert not result["checks"]["shopping_list_excludes_pantry"]
+
+
+def test_meals_with_many_ingredients_are_accepted(agent):
+    plan = [_meal(12)]
+    with patch.object(agent, "generate_text", return_value=json.dumps(plan)) as gen:
+        assert agent.generate_meal_plan(input_fn=lambda _: "1 day", output_fn=lambda _: None) == plan
+    assert gen.call_count == 1  # no repair round-trip
+    assert "max_ingredients_per_meal" not in score_run({"id": "t", "turns": [], "expect": {}}, plan, [])["checks"]
 
 
 @pytest.fixture
@@ -137,21 +142,6 @@ def _meal(n_ingredients, name="Stew", day="Day 1"):
             "ingredients": [f"i{k}" for k in range(n_ingredients)]}
 
 
-def test_over_limit_plan_is_sent_back_and_fixed(agent):
-    bad = json.dumps([_meal(7, "Ok"), _meal(9, "Big")])
-    good = json.dumps([_meal(7, "Ok"), _meal(5, "Big")])
-    output = []
-    with patch.object(agent, "generate_text", side_effect=[bad, good]) as gen:
-        plan = agent.generate_meal_plan(input_fn=lambda _: "1 day",
-                                        output_fn=output.append)
-    assert plan == json.loads(good)
-    assert gen.call_count == 2
-    feedback = gen.call_args_list[1].args[0][-1]
-    assert feedback["role"] == "user"
-    assert "'Big' (9)" in feedback["content"]
-    assert "'Ok'" not in feedback["content"]
-
-
 def test_invalid_json_plan_is_sent_back_and_fixed(agent):
     broken = '[{"day": "Day 1", "meal_type": "dinner", "meal_name": "X", "ingredients": ["a",]}]'
     good = json.dumps([_meal(3)])
@@ -164,7 +154,7 @@ def test_invalid_json_plan_is_sent_back_and_fixed(agent):
 def test_repair_gives_up_after_max_attempts(agent):
     from config import config
 
-    bad = json.dumps([_meal(10)])
+    bad = json.dumps([{"day": "Day 1", "meal_type": "dinner"}])  # missing meal_name and ingredients
     turns = iter(["1 day", "exit"])
     output = []
     with patch.object(agent, "generate_text", return_value=bad) as gen:
@@ -251,3 +241,59 @@ def test_judge_run_captures_generation_errors():
     def boom(_):
         raise RuntimeError("oom")
     assert judge_run(CASE, GOOD_PLAN, boom)["error"] == "RuntimeError: oom"
+
+
+@pytest.mark.parametrize("shopping_item,pantry_item", [
+    ("pepper", "black pepper"),  # generic pepper is a different item from black pepper
+    ("oil", "olive oil"),
+    ("rice vinegar", "rice"),
+])
+def test_generic_or_different_items_are_not_pantry_leaks(shopping_item, pantry_item):
+    case = {"id": "p", "turns": [], "pantry": [pantry_item], "expect": {"shopping_list_excludes_pantry": True}}
+    result = score_run(case, GOOD_PLAN, [shopping_item])
+    assert result["checks"]["shopping_list_excludes_pantry"]
+
+
+# ============ THREE-WAY PANTRY CHECK ============
+
+from eval import _pantry_match
+
+
+@pytest.mark.parametrize("item,pantry_item,expected", [
+    ("chicken breasts", "chicken breast", "leak"),
+    ("boneless chicken breasts", "chicken breast", "leak"),
+    ("Boneless, Skinless Chicken Breast", "chicken breast", "leak"),
+    ("cooked rice", "rice", "leak"),
+    ("table salt", "salt", "leak"),
+    ("Extra Virgin Olive Oil", "olive oil", "leak"),
+    ("fresh chopped onions", "onion", "leak"),
+    ("brown rice", "rice", "possible"),
+    ("cooked brown rice", "rice", "possible"),
+    ("Sweet potatoes", "potatoes", "possible"),
+    ("rice vinegar", "rice", None),
+    ("garlic powder", "garlic", None),
+    ("pepper", "black pepper", None),
+    ("eggplant", "egg", None),
+])
+def test_pantry_match(item, pantry_item, expected):
+    assert _pantry_match(item, pantry_item) == expected
+
+
+def test_possible_pantry_items_are_reported_but_do_not_fail():
+    case = {"id": "p", "turns": [], "pantry": ["rice", "chicken breast"],
+            "expect": {"shopping_list_excludes_pantry": True}}
+    result = score_run(case, GOOD_PLAN, ["brown rice", "tofu"])
+    assert result["checks"]["shopping_list_excludes_pantry"]
+    assert result["details"]["possible_pantry_items"] == ["brown rice"]
+    assert result["details"]["pantry_items_in_shopping_list"] == []
+
+    result = score_run(case, GOOD_PLAN, ["brown rice", "boneless chicken breasts"])
+    assert not result["checks"]["shopping_list_excludes_pantry"]
+    assert result["details"]["pantry_items_in_shopping_list"] == ["boneless chicken breasts"]
+
+
+def test_parse_judge_reply_ignores_gemma_thinking():
+    reply = ('<|channel>thought\nThe user said {"no nuts"}. Checking...\n<channel|>'
+             + json.dumps(VERDICT))
+    verdict = parse_judge_reply(reply)
+    assert verdict["passed"] and verdict["score"] == 4

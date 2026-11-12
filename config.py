@@ -34,9 +34,13 @@ class Config:
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 
+    # ============ Eval Judge ============
+    # Gemma 4 E4B beat Llama 3 8B as judge on 37 hand-labeled plans (35/37 vs 29/37).
+    # It writes its reasoning before the JSON verdict, so it needs a large token budget.
+    JUDGE_MODEL_PATH = os.getenv("JUDGE_MODEL_PATH", "./models/gemma-4-e4b-it-4bit")
+    JUDGE_MAX_TOKENS = int(os.getenv("JUDGE_MAX_TOKENS", "2048"))
+
     # ============ Meal Plan Rules ============
-    # Keep MAX_INGREDIENTS_PER_MEAL in sync with rule 5 of the system prompt in agent.py.
-    MAX_INGREDIENTS_PER_MEAL = int(os.getenv("MAX_INGREDIENTS_PER_MEAL", "7"))
     # How many times the agent sends an invalid meal plan back to the model for correction.
     MAX_REPAIR_ATTEMPTS = int(os.getenv("MAX_REPAIR_ATTEMPTS", "2"))
     

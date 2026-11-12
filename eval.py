@@ -9,16 +9,17 @@ Each case in the dataset (JSONL, one case per line) holds:
   expect  - properties the meal plan / shopping list must satisfy (all optional):
               days                          number of distinct days in the plan
               meal_types                    exact set of meal types expected
-              max_ingredients_per_meal      upper bound on ingredients per meal
               forbidden_ingredients         terms that must not appear in any ingredient
               forbidden_exceptions          phrases that exempt an ingredient from that check
                                             (e.g. "gluten-free" so "gluten-free soy sauce" is allowed)
               shopping_list_excludes_pantry no pantry item may appear in the shopping list
-              judge_criteria                extra instructions for the LLM judge (only used with --judge-model)
+                                            (entries that only might be pantry items are listed
+                                            under possible_pantry_items for review, see below)
+              judge_criteria                extra instructions for the LLM judge (only used when the LLM judge runs)
 
 Each case is run --repeats times, each run in its own process with a timeout.
 
-Rule checks are deterministic. With --judge-model, an LLM additionally grades each plan for
+Rule checks are deterministic. Unless --no-judge is given, an LLM (config.JUDGE_MODEL_PATH) additionally grades each plan for
 things rules can't see (implied ingredients such as "pasta" under a gluten-free request,
 whether meals make sense, whether the plan matches what the user asked for). Judge verdicts are
 reported separately from the rule-based pass/fail.
@@ -76,13 +77,37 @@ def _contains_term(ingredient: str, term: str) -> bool:
     return re.search(_term_pattern(term), _norm(ingredient)) is not None
 
 
-def _is_pantry_item(item: str, pantry_item: str) -> bool:
-    """True when a shopping-list entry is the pantry item, allowing plurals and leading qualifiers.
+# Words that describe an item without changing what it is: "boneless chicken breast" is still
+# chicken breast. Words NOT listed here are treated as possibly changing the item ("brown rice"),
+# and those entries are reported for review instead of failing the run. Add a word here once
+# you've decided it never changes the item.
+SAME_ITEM_QUALIFIERS = {
+    "fresh", "chopped", "boneless", "skinless", "large", "organic", "extra virgin",
+    "cooked", "table",
+}
 
-    'eggs' ~ 'egg' and 'extra virgin olive oil' ~ 'olive oil' match; 'rice vinegar' ~ 'rice'
-    and 'garlic powder' ~ 'garlic' do not, because the pantry item must be the final noun phrase.
+
+def _pantry_match(item: str, pantry_item: str) -> Optional[str]:
+    """Compare one shopping-list entry with one pantry item.
+
+    Returns "leak" when the entry is the pantry item (allowing plurals and SAME_ITEM_QUALIFIERS):
+    'eggs' ~ 'egg', 'boneless chicken breasts' ~ 'chicken breast'.
+    Returns "possible" when the pantry item ends the entry but other words come first:
+    'brown rice' ~ 'rice', 'sweet potatoes' ~ 'potatoes'.
+    Returns None when it is a different item: 'rice vinegar' ~ 'rice', 'pepper' ~ 'black pepper'.
     """
-    return re.search(_term_pattern(pantry_item) + r"$", _norm(item)) is not None
+    match = re.search(_term_pattern(pantry_item) + r"$", _norm(item))
+    if match is None:
+        return None
+
+    leading_words = _norm(item)[:match.start()]
+    for qualifier in sorted(SAME_ITEM_QUALIFIERS, key=len, reverse=True):  # "extra virgin" first
+        leading_words = re.sub(r"\b" + re.escape(qualifier) + r"\b", " ", leading_words)
+    leading_words = re.sub(r"[^a-z]+", " ", leading_words).strip()
+
+    if leading_words:
+        return "possible"
+    return "leak"
 
 
 def _meals(meal_plan: Any) -> List[Dict[str, Any]]:
@@ -126,16 +151,6 @@ def _check_meal_types(meals: List[Dict[str, Any]], expected_types: List[str]):
     return passed, sorted(found_types)
 
 
-def _check_ingredient_limit(meals: List[Dict[str, Any]], limit: int):
-    """No meal may have more than `limit` ingredients."""
-    meals_over_limit = []
-    for meal in meals:
-        if len(meal["ingredients"]) > limit:
-            meals_over_limit.append(meal.get("meal_name", "?"))
-    passed = len(meals_over_limit) == 0
-    return passed, meals_over_limit
-
-
 def _is_forbidden(text: str, forbidden_terms: List[str], exceptions: List[str]) -> bool:
     """True if `text` contains a forbidden term and no exception phrase."""
     for exception in exceptions:
@@ -165,17 +180,23 @@ def _check_forbidden(meals: List[Dict[str, Any]], forbidden_terms: List[str],
 
 
 def _check_pantry_excluded(shopping_list: Optional[List[str]], pantry: List[str]):
-    """No shopping-list entry may be something already in the pantry."""
+    """No shopping-list entry may be something already in the pantry.
+
+    Returns (passed, leaked, possible). Only leaked entries fail the check; possible ones
+    need a human decision (see SAME_ITEM_QUALIFIERS).
+    """
     pantry_items = [item for item in pantry if _norm(item)]  # ignore blank pantry entries
 
     leaked = []
+    possible = []
     for item in shopping_list or []:
-        for pantry_item in pantry_items:
-            if _is_pantry_item(item, pantry_item):
-                leaked.append(item)
-                break
+        results = [_pantry_match(item, pantry_item) for pantry_item in pantry_items]
+        if "leak" in results:
+            leaked.append(item)
+        elif "possible" in results:
+            possible.append(item)
     passed = len(leaked) == 0
-    return passed, leaked
+    return passed, leaked, possible
 
 
 def score_run(case: Dict[str, Any], meal_plan: Optional[List[Dict[str, Any]]],
@@ -209,11 +230,6 @@ def score_run(case: Dict[str, Any], meal_plan: Optional[List[Dict[str, Any]]],
         checks["meal_types"] = has_plan and passed
         details["meal_types"] = detail
 
-    if "max_ingredients_per_meal" in expect:
-        passed, detail = _check_ingredient_limit(meals, expect["max_ingredients_per_meal"])
-        checks["max_ingredients_per_meal"] = has_plan and passed
-        details["meals_over_ingredient_limit"] = detail
-
     if "forbidden_ingredients" in expect:
         passed, detail = _check_forbidden(meals, expect["forbidden_ingredients"],
                                           expect.get("forbidden_exceptions", []))
@@ -221,9 +237,10 @@ def score_run(case: Dict[str, Any], meal_plan: Optional[List[Dict[str, Any]]],
         details["forbidden_hits"] = detail
 
     if expect.get("shopping_list_excludes_pantry"):
-        passed, detail = _check_pantry_excluded(shopping_list, case.get("pantry", []))
+        passed, leaked, possible = _check_pantry_excluded(shopping_list, case.get("pantry", []))
         checks["shopping_list_excludes_pantry"] = has_plan and passed
-        details["pantry_items_in_shopping_list"] = detail
+        details["pantry_items_in_shopping_list"] = leaked
+        details["possible_pantry_items"] = possible
 
     all_passed = all(checks.values())
     return {"passed": all_passed, "checks": checks, "details": details}
@@ -260,6 +277,9 @@ def build_judge_messages(case: Dict[str, Any], meal_plan: List[Dict[str, Any]]) 
 
 def parse_judge_reply(reply: str) -> Dict[str, Any]:
     """Extract the judge's JSON verdict; return {'error': ...} if it can't be parsed."""
+    # Gemma 4 writes its reasoning first, ending with <channel|>; the verdict comes after it.
+    if "<channel|>" in reply:
+        reply = reply.split("<channel|>")[-1]
     match = re.search(r"\{.*\}", reply, re.DOTALL)
     if not match:
         return {"error": "no JSON in judge reply", "raw": reply}
@@ -330,7 +350,8 @@ def _worker(model_path: str, case: Dict[str, Any], q: mp.Queue,
             # Judge at temperature 0 so repeated grading of the same plan is stable.
             judge_agent = agent if judge_model == model_path else Agent(judge_model)
             judge = judge_run(case, meal_plan,
-                              lambda msgs: judge_agent.generate_text(msgs, temperature=0.0, max_tokens=512))
+                              lambda msgs: judge_agent.generate_text(msgs, temperature=0.0,
+                                                                     max_tokens=config.JUDGE_MAX_TOKENS))
             judge_time = time.time() - t3
 
         q.put({
@@ -368,6 +389,15 @@ def run_once(model_path: str, case: Dict[str, Any], timeout: int,
 
 def _rate(values: List[bool]) -> float:
     return round(sum(values) / len(values), 3) if values else 0.0
+
+
+def _possible_pantry_items(runs: List[Dict[str, Any]]) -> List[str]:
+    """Shopping-list entries that might be pantry items, collected across runs for review."""
+    items = set()
+    for run in runs:
+        for item in run.get("details", {}).get("possible_pantry_items", []):
+            items.add(item)
+    return sorted(items)
 
 
 def _judge_summary(runs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -413,6 +443,7 @@ def evaluate(model_path: str, cases: List[Dict[str, Any]], repeats: int = 3, tim
             "timeouts": sum(1 for r in case_runs if r.get("error") == "timeout"),
             "avg_turns_used": round(mean(r.get("turns_used", 0) for r in case_runs), 2),
             "avg_meal_time_s": round(mean(meal_times), 2) if meal_times else None,
+            "possible_pantry_items": _possible_pantry_items(case_runs),
         }
         judge_summary = _judge_summary(case_runs)
         if judge_summary:
@@ -427,6 +458,7 @@ def evaluate(model_path: str, cases: List[Dict[str, Any]], repeats: int = 3, tim
         "errors": sum(s["errors"] for s in case_summaries.values()),
         "timeouts": sum(s["timeouts"] for s in case_summaries.values()),
         "per_case": case_summaries,
+        "possible_pantry_items_to_review": _possible_pantry_items(runs),
     }
     if judge_model:
         summary["judge_model"] = Path(judge_model).name
@@ -449,10 +481,13 @@ def _cli():
     p.add_argument("--repeats", "-n", type=int, default=3, help="Runs per case")
     p.add_argument("--timeout", "-t", type=int, default=300, help="Timeout (seconds) per run, including model load")
     p.add_argument("--output", "-o", default="eval_results.json", help="Output JSON file for results")
-    p.add_argument("--judge-model", "-j", default=None,
-                   help="MLX model directory used as an LLM judge (omit to run rule checks only). "
+    p.add_argument("--judge-model", "-j", default=config.JUDGE_MODEL_PATH,
+                   help="MLX model directory used as the LLM judge (default: config.JUDGE_MODEL_PATH). "
                         "Pass the same path as --model to reuse the loaded model.")
+    p.add_argument("--no-judge", action="store_true", help="Run rule checks only, without the LLM judge")
     args = p.parse_args()
+    if args.no_judge:
+        args.judge_model = None
 
     cases = load_cases(args.cases)
     if args.case:

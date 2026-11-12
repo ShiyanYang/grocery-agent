@@ -115,7 +115,7 @@ class Agent:
       {"day": "Day 1", "meal_type": "breakfast", "meal_name": "...", "ingredients": ["...", "..."]},
       {"day": "Day 1", "meal_type": "lunch", "meal_name": "...", "ingredients": ["...", "..."]}
     ]
-    ''' 5. For each meal, there are no mroe than 7 ingredients. Please choose the ingredeients that are essential for the meal.
+    '''
         """
 
         output_fn("Hi I am your meal planning assistant. How many days do you want to prepare for meals?")
@@ -190,14 +190,6 @@ class Agent:
             return None, f"Your meal plan is not valid JSON ({e}). {resend}"
         except ValidationError as e:
             return None, f"Your meal plan does not match the schema ({e.message}). {resend}"
-
-        limit = config.MAX_INGREDIENTS_PER_MEAL
-        over = [f"{m['day']} {m['meal_type']} '{m['meal_name']}' ({len(m['ingredients'])})"
-                for m in parsed if len(m["ingredients"]) > limit]
-        if over:
-            return None, (f"These meals have more than {limit} ingredients: {'; '.join(over)}. "
-                          f"Reduce each of them to at most {limit} essential ingredients, "
-                          f"keep every other meal unchanged. {resend}")
         return parsed, None
 
     def _normalize(self, item: str) -> str:
