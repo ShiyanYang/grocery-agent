@@ -2,6 +2,7 @@
 from mlx_lm import generate, load
 from mlx_lm.sample_utils import make_sampler
 from pantry import list_items
+from ingredient_match import pantry_match
 from memory import Memory
 from config import config
 import json
@@ -11,6 +12,20 @@ from typing import Callable, Optional, Dict, List, Any, Tuple
 from jsonschema import validate, ValidationError
 
 logger = logging.getLogger(__name__)
+
+# A meal plan: one dict per meal with "day", "meal_type", "meal_name" and "ingredients".
+MealPlan = List[Dict[str, Any]]
+
+# Added to every repair message sent back to the model.
+RESEND_PLAN = "Resend the complete meal plan as JSON only, following the schema."
+
+# Added when a plan has the wrong shape, e.g. meals grouped inside each day.
+PLAN_SHAPE_HELP = (
+    "Use one flat list with one object per meal, each with day, meal_type, meal_name and ingredients, "
+    'for example: [{"day": "Day 1", "meal_type": "breakfast", "meal_name": "Oatmeal", "ingredients": ["oats", "milk"]}, '
+    '{"day": "Day 1", "meal_type": "dinner", "meal_name": "Stir fry", "ingredients": ["tofu", "rice"]}]. '
+    "Do not group meals inside a day."
+)
 
 MEAL_PLAN_SCHEMA = {
             "type": "array",
@@ -94,7 +109,7 @@ class Agent:
     
         
     def generate_meal_plan(self, input_fn: Optional[Callable[[str], str]] = None,
-                           output_fn: Optional[Callable[[str], None]] = None) -> Optional[List[Dict[str, Any]]]:
+                           output_fn: Optional[Callable[[str], None]] = None) -> Optional[MealPlan]:
         """Generate the meal plan over the next X days.
 
         input_fn / output_fn default to the terminal (input / print); the eval
@@ -172,25 +187,32 @@ class Agent:
         self.memory.add(f"Assistant: {content}")
         return content
 
-    def _check_meal_plan(self, content: str) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+    def _check_meal_plan(self, content: str) -> Tuple[Optional[MealPlan], Optional[str]]:
         """Extract and validate a meal plan from a model reply.
 
-        Returns (plan, None) when the plan is valid, (None, feedback) when the reply
-        contains a plan that breaks a rule, and (None, None) when it contains no plan
-        (e.g. the model asked a follow-up question).
+        Returns one of:
+            (plan, None)      the reply contains a valid plan
+            (None, feedback)  the reply contains a plan that breaks a rule; feedback says what to fix
+            (None, None)      the reply contains no plan, e.g. the model asked a follow-up question
         """
-        match = re.search(r'\[\s*\{.*?\}\s*\]', content.strip(), re.DOTALL)
-        if not match:
+        start = re.search(r'\[\s*\{', content)  # where a list of objects begins
+        if start is None:
             return None, None
-        resend = "Resend the complete meal plan as JSON only, following the schema."
+
         try:
-            parsed = json.loads(match.group())
-            validate(instance=parsed, schema=MEAL_PLAN_SCHEMA)
+            # Read one complete JSON value from the "[" onwards. Nested lists stay whole, and any
+            # text after the plan is ignored.
+            plan, _ = json.JSONDecoder().raw_decode(content, start.start())
         except json.JSONDecodeError as e:
-            return None, f"Your meal plan is not valid JSON ({e}). {resend}"
+            return None, f"Your meal plan is not valid JSON ({e}). {RESEND_PLAN}"
+
+        try:
+            validate(instance=plan, schema=MEAL_PLAN_SCHEMA)
         except ValidationError as e:
-            return None, f"Your meal plan does not match the schema ({e.message}). {resend}"
-        return parsed, None
+            return None, (f"Your meal plan does not match the schema ({e.message}). "
+                          f"{PLAN_SHAPE_HELP} {RESEND_PLAN}")
+
+        return plan, None
 
     def _normalize(self, item: str) -> str:
         """Lowercase and strip whitespace/punctuation so 'Tomato', 'tomato ', 'Tomatoes' compare cleanly."""
@@ -198,7 +220,7 @@ class Agent:
             raise TypeError(f"Expected string, got {type(item).__name__}")
         return item.strip().lower()
 
-    def _flatten_ingredients(self, meal_plan: List[Dict[str, Any]]) -> List[str]:
+    def _flatten_ingredients(self, meal_plan: MealPlan) -> List[str]:
         """Turn the meal plan into a flat list of ingredient entries."""
         if not isinstance(meal_plan, list):
             raise TypeError(f"Expected list, got {type(meal_plan).__name__}")
@@ -211,26 +233,39 @@ class Agent:
         return all_ingredients
     
     def _filter_out_pantry_items(self, ingredients: List[str], pantry_list: Optional[List[str]]) -> List[str]:
-        """Remove ingredient entries that are already available in the pantry."""
+        """Remove ingredient entries that are already available in the pantry, and duplicates.
+
+        Uses the same rules as the eval (ingredient_match.py): 'chicken breasts' and
+        'boneless chicken breast' are removed for pantry 'chicken breast'; 'brown rice' is kept
+        for pantry 'rice' because it may be a different item.
+        """
         if not isinstance(ingredients, list):
             raise TypeError(f"Expected list, got {type(ingredients).__name__}")
-        
-        pantry_list = pantry_list or []
-        pantry_set = {self._normalize(item) for item in pantry_list if isinstance(item, str)}
-        
+
+        pantry_items = [item for item in pantry_list or [] if isinstance(item, str) and item.strip()]
+
         filtered_ingredients = []
         seen = set()
         for entry in ingredients:
-            if isinstance(entry, str):
-                normalized = self._normalize(entry)
-                if normalized not in pantry_set and normalized not in seen:
-                    filtered_ingredients.append(entry)
-                    seen.add(normalized)
-        
+            if not isinstance(entry, str):
+                continue
+            normalized = self._normalize(entry)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+
+            in_pantry = False
+            for pantry_item in pantry_items:
+                if pantry_match(entry, pantry_item) == "leak":
+                    in_pantry = True
+                    break
+            if not in_pantry:
+                filtered_ingredients.append(entry)
+
         return filtered_ingredients
 
         
-    def generate_shopping_list(self, meal_plan: Optional[List[Dict[str, Any]]],
+    def generate_shopping_list(self, meal_plan: Optional[MealPlan],
                                pantry_list: Optional[List[str]] = None) -> List[str]:
         """Generate the shopping list that is not in the pantry.
 

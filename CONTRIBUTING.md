@@ -190,8 +190,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 ### 3. Install Development Dependencies
 ```bash
-pip install -r requirements.txt
-# Optional: pip install pytest pytest-cov black pylint mypy
+pip install -r requirements-dev.txt   # app dependencies + pytest
+# Optional: pip install pytest-cov black pylint mypy
 ```
 
 ### 4. Create Feature Branch

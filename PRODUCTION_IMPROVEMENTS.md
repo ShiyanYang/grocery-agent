@@ -23,13 +23,13 @@ _Last updated: 2026-11-12_
 14. ✅ **Switched from llama-cpp (GGUF) to MLX**: the model is loaded from a local MLX directory
 15. ✅ **Model cache**: `Agent.get_model()` loads each model once and reuses it across agent instances
 16. ✅ **JSON schema validation** of meal plans (`MEAL_PLAN_SCHEMA` + `jsonschema`)
-17. ✅ **Self-repair loop**: invalid JSON or schema violations are sent back to the model with specific feedback, up to `MAX_REPAIR_ATTEMPTS` times
+17. ✅ **Self-repair loop**: invalid JSON or schema violations are sent back to the model with specific feedback, up to `MAX_REPAIR_ATTEMPTS` times (feedback for nested plans fixed in item 32)
 18. ✅ **Injectable I/O**: `generate_meal_plan(input_fn, output_fn)` so conversations can be scripted (used by tests and eval)
-19. ✅ **Unit tests** (`test/`, pytest, 59 tests): shopping list, pantry filtering, meal-plan parsing, self-repair, eval scoring and judge parsing. The LLM is mocked, so no model is needed.
+19. ✅ **Unit tests** (`test/`, pytest, 74 tests, all passing): shopping list, pantry filtering and leak rules, meal-plan extraction, self-repair, eval scoring and judge parsing. The LLM is mocked, so no model is needed. Install with `pip install -r requirements-dev.txt`.
 20. ✅ **Evaluation harness** (`eval.py`):
     - Golden dataset of scripted conversations (`eval_data/meal_plan_cases.jsonl`)
     - Each case runs N times in its own process, with a timeout
-    - Rule checks: day count, meal types, forbidden ingredients (incl. meal names), pantry leaks
+    - Rule checks: day count, meal types, forbidden ingredients (incl. meal names), pantry leaks (three-way, see item 28)
     - **LLM judge** (on by default, `--no-judge` to skip): diet compliance, matches request, coherence, 1–5 score
     - Per-case and overall pass rates and timings saved to `eval_results.json`; latest results in README
 21. ✅ **Desktop chat GUI** (`chat_gui.py`, run via `run_gui.py`)
@@ -66,26 +66,62 @@ _Last updated: 2026-11-12_
       These entries are listed under `possible_pantry_items` and in the summary. If a word turns out never to
       change the item, add it to `SAME_ITEM_QUALIFIERS`.
     - **Result:** re-scoring the last run removed 3 false alarms (8/15 → 11/15); real leaks like `chicken breasts` still fail.
-29. ✅ **README results** re-graded with the new judge and pantry check: rule checks 11/15, judge 14/15
+29. ✅ **README results** from a fresh eval run with all fixes: rule checks 14/15, judge 14/15, judge score 4.40 (12/15 runs fine on human review)
+### Round 4: fixing the agent and setup
+30. ✅ **Leak-aware pantry filter in the agent**: `_filter_out_pantry_items()` now uses the same rules as the eval,
+    moved into a shared module, `ingredient_match.py` (`SAME_ITEM_QUALIFIERS`, `pantry_match`)
+    - **Task:** the agent's shopping list must not contain anything already in the pantry.
+    - **Fail (before):** only exact matches were removed, so `chicken breasts`, `boneless chicken breasts`,
+      `table salt` and `cooked rice` stayed on the list.
+    - **Success (now):** rebuilding the shopping lists of the 27 saved runs with a plan removes all 5 of those
+      leaks, while `brown rice` and `sweet potatoes` stay on the list (they may be different items).
+    - **Caveat:** the agent and the eval now share the same rules, so the eval's pantry check can no longer catch
+      mistakes in those rules. Review `possible_pantry_items` and keep the tests in `test_agent.py` /
+      `test_eval.py` up to date.
+31. ✅ **Complete, pinned dependencies**
+    - **Task:** a fresh `pip install` must give a working app and test setup, with the versions the project is tested on.
+    - **Fail (before):** `jsonschema` was missing, so `agent.py` crashed with `ModuleNotFoundError`; `mlx-lm` was
+      unpinned, so a fresh install got 0.32.2 instead of the tested 0.31.3; `pytest` wasn't listed at all.
+    - **Success (now):** `requirements.txt` has `jsonschema==4.26.0` and `mlx-lm==0.31.3`, and the new
+      `requirements-dev.txt` adds `pytest==9.1.1`. A dry-run install in a fresh virtual environment resolves cleanly.
+    - **Still open:** packages that `mlx-lm` depends on aren't pinned (a fresh install gets `mlx` 0.32.4 and
+      `transformers` 5.22.2 instead of 0.32.1 and 5.15.1). `pip freeze > requirements.lock` would pin everything.
+32. ✅ **Self-repair diagnoses nested plans correctly** (`_check_meal_plan` in `agent.py`)
+    - **Task:** when the model sends a broken plan, the repair feedback must say what is actually wrong.
+    - **Fail (before):** the plan was found with the shortest `[{...}]` match. For a plan with meals nested inside
+      each day (`{"day": ..., "meals": [...]}`), that cut the JSON off at the inner list, so the agent said
+      "not valid JSON" about valid JSON. The model kept fixing commas, both repairs failed, and the run had no plan.
+    - **Success (now):** the agent reads one complete JSON value from the first `[{`, so nested plans stay whole and
+      fail the schema check instead. Schema feedback now includes the expected flat shape with an example
+      (`PLAN_SHAPE_HELP`). Plans cut off mid-way now get "not valid JSON" feedback and a repair attempt; before,
+      they were silently treated as a follow-up question.
+    - **Checked:** on 188 real model replies, only the 6 nested-plan replies changed outcome, and no previously
+      accepted plan changed (also 2,820 broken variants). Not yet confirmed in a full eval run: in the latest run
+      no plan needed a repair, so whether the model fixes a nested plan after the new feedback is still untested.
+    - Also simplified: a `MealPlan` type alias for `List[Dict[str, Any]]`, and plain `try` blocks.
+33. ✅ **Fixed the failing self-repair test** (`test_invalid_json_plan_is_sent_back_and_fixed`)
+    - **Task:** check that, after a broken plan, the model's second call receives the "not valid JSON" feedback.
+    - **Fail (before):** the test read the mock's record of the messages, which is the same list the agent keeps adding
+      to. By the time the test checked it, the last message was the model's reply, not the feedback.
+    - **Success (now):** the fake model saves a copy of the messages it receives on each call, and the test checks
+      that copy. The whole suite passes (74 tests).
 
 ---
 
 ## 🔴 High priority
 
-### 1. Pantry matching in the agent is exact
-The eval now catches leaks like `chicken breasts` vs pantry `chicken breast` (2 of the last 15 runs), but the
-agent's `_filter_out_pantry_items()` still only removes exact matches, so these items end up on the shopping list.
-Short term: reuse the eval's leak rules in the agent. Long term: see #8 (structured ingredients).
+### 1. Ingredients bundled into one string
+In 2 of the last 15 runs, the model wrote each meal's ingredients as one comma-separated string
+(`["pasta, canned tomatoes, olive oil, ..."]`). The schema accepts it, so neither grader noticed: the shopping
+list became 4 long entries and pantry items weren't removed. Options: reject it in `_check_meal_plan` with repair
+feedback, or split it in `_flatten_ingredients` (careful: `"boneless, skinless chicken breast"` is one item),
+and add a rule check so the eval catches it. #6 (structured ingredients) would also prevent it.
 
-### 2. `jsonschema` missing from `requirements.txt`
-`agent.py` imports it, so a fresh install fails with `ModuleNotFoundError`.
+### 2. Pantry matching still guesses from free text
+The agent now removes leaks like `chicken breasts` (item 30), but entries with unknown words such as
+`brown rice` vs pantry `rice` are kept on the list and need a human decision. Long term: see #6 (structured ingredients).
 
-### 3. Failing self-repair test
-`test_invalid_json_plan_is_sent_back_and_fixed` reads
-`call_args_list[1].args[0][-1]`, but the mock holds a reference to the `messages` list, which `_ask` appends
-the reply to afterwards. Read `[-2]` (or copy the messages in the mock) instead.
-
-### 4. Remaining grader errors
+### 3. Remaining grader errors
 - **Meal-name false alarm**: "Crab-Free Tuna Wrap" fails the forbidden-ingredient check. Ignore negated
   terms ("crab-free", "no crab") in meal names.
 - **Judge passes plans while naming the problem**: Gemma marked gelatin cups (vegetarian) and granola
@@ -94,12 +130,7 @@ the reply to afterwards. Read `[-2]` (or copy the messages in the mock) instead.
 - The 37 labeled plans were judged by one person (and only 1 real plan was bad). Save the labels to a
   file (e.g. `eval_data/human_labels.jsonl`) with a script that reports grader agreement, and add more bad examples.
 
-### 5. Plans in the wrong JSON shape
-1 of the last 15 runs produced no plan: the model nested meals inside each day (`{"day": ..., "meals": [...]}`),
-and the generic "not valid JSON" repair feedback didn't fix it in 2 attempts. Give feedback that names the
-expected shape.
-
-### 6. File locking for pantry/memory
+### 4. File locking for pantry/memory
 Two processes writing `data/pantry.json` at once (e.g. `app.py` and the GUI) can lose updates:
 ```python
 from filelock import FileLock
@@ -113,28 +144,28 @@ def load_pantry():
 
 ## 🟠 Medium priority
 
-### 7. Clean up config and repo leftovers
+### 5. Clean up config and repo leftovers
 - `LLM_N_CTX` and `LLM_N_THREADS` are llama-cpp leftovers that MLX doesn't use; remove them.
 - `models/llama-3-8b-instruct.gguf` (4.7 GB) is no longer used.
 - Repo rename to `grocery-agent`: the README clone URL is updated, but the git remote, the CONTRIBUTING clone
   URL, the `receipt_agent` variable in `main.py` and `receipt_agent.textClipping` still use the old name.
 
-### 8. Structured ingredients
+### 6. Structured ingredients
 Ingredients are free text, so every pantry comparison has to guess which words are the item ("cooked brown
 rice"). Change each ingredient in `MEAL_PLAN_SCHEMA` to `{"item": "chicken breast", "prep": "boneless"}` so the
 agent and the eval compare only `item`. Needs a schema, prompt and `_flatten_ingredients` change, and an eval
 run to confirm the 8B model follows it.
 
-### 9. Try Gemma 4 E4B as the agent model
+### 7. Try Gemma 4 E4B as the agent model
 It's far stronger than Llama 3 8B (MMLU-Pro ~69% vs ~41%) and smaller (5 GB vs 8 GB). Before switching:
 strip its thinking text in `generate_text`, raise the GUI's 200-token limit, run the eval and compare
 transcripts. If it becomes the agent, change the judge too (e.g. test Gemma 4 26B-A4B), so the model isn't grading itself.
 
-### 10. More tests
+### 8. More tests
 - `pantry.py` and `memory.py` have no tests yet (load/save, missing or corrupt files).
 - Grow the eval dataset beyond 5 cases: allergies, conflicting requests, users who change their mind mid-conversation.
 
-### 11. Module docstrings and examples
+### 9. Module docstrings and examples
 `agent.py`, `pantry.py` and `memory.py` have no module docstring:
 ```python
 """
@@ -148,7 +179,7 @@ Example:
 """
 ```
 
-### 12. Structured logging
+### 10. Structured logging
 JSON log format for production:
 ```python
 class JSONFormatter(logging.Formatter):
@@ -157,7 +188,7 @@ class JSONFormatter(logging.Formatter):
                            "logger": record.name, "message": record.getMessage()})
 ```
 
-### 13. API layer
+### 11. API layer
 FastAPI/Flask endpoint. This needs the meal-plan conversation to work over requests instead of `input()`;
 the injectable `input_fn`/`output_fn` are a first step:
 ```python
@@ -168,14 +199,14 @@ def generate_meal_plan():
     ...
 ```
 
-### 14. Database instead of JSON files
-SQLite for the pantry and memory (also solves #6):
+### 12. Database instead of JSON files
+SQLite for the pantry and memory (also solves #4):
 ```python
 conn.execute("""CREATE TABLE IF NOT EXISTS pantry (
     id INTEGER PRIMARY KEY, item TEXT UNIQUE, added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
 ```
 
-### 15. Packaging / deployment
+### 13. Packaging / deployment
 MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't work. Options: a
 `pyproject.toml` for installation, or support a second backend (e.g. llama-cpp or an API) for Linux/Docker.
 
@@ -183,12 +214,12 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
 
 ## 🟡 Nice to have
 
-16. **Custom exceptions**: `MealPlanGenerationError`, `PantryAccessError`
-17. **CLI with Click/Typer**: e.g. `grocery plan --days 3`
-18. **Monitoring**: generation time and repair attempts per request (eval already records timings)
-19. **Graceful degradation**: fallback meal plan if the model fails to load
-20. **Security**: sanitize ingredient names; rate limiting if exposed via an API
-21. **Async generation** (only matters once there's an API serving several users)
+14. **Custom exceptions**: `MealPlanGenerationError`, `PantryAccessError`
+15. **CLI with Click/Typer**: e.g. `grocery plan --days 3`
+16. **Monitoring**: generation time and repair attempts per request (eval already records timings)
+17. **Graceful degradation**: fallback meal plan if the model fails to load
+18. **Security**: sanitize ingredient names; rate limiting if exposed via an API
+19. **Async generation** (only matters once there's an API serving several users)
 
 ---
 
@@ -210,18 +241,20 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
 ## Next steps
 
 1. **Now**
-   - [ ] Add `jsonschema` to `requirements.txt`
-   - [ ] Fix the failing self-repair test
-   - [ ] Leak-aware pantry matching in the agent
-   - [ ] Fresh `python eval.py` run, so `eval_results.json` matches the README table and includes judge scores
+   - [x] Add `jsonschema` to `requirements.txt`
+   - [x] Fix the failing self-repair test
+   - [x] Leak-aware pantry matching in the agent
+   - [x] Fresh `python eval.py` run, so `eval_results.json` matches the README table and includes judge scores
+   - [ ] Catch ingredients bundled into one string (agent + eval)
 2. **Short term**
    - [x] Stronger judge model; spot-check verdicts
    - [ ] Fix the "Crab-Free" meal-name false alarm
-   - [ ] Shape-specific repair feedback for nested meal plans
+   - [x] Shape-specific repair feedback for nested meal plans
    - [ ] Save human labels to a file, with an agreement script
    - [ ] Tests for `pantry.py` / `memory.py`
    - [ ] File locking
    - [ ] Config/repo cleanup and finish the repo rename
+   - [ ] Pin all installed versions (`pip freeze > requirements.lock`)
 3. **Medium term**
    - [ ] Structured ingredients (`item` + `prep`)
    - [ ] Try Gemma 4 E4B as the agent model

@@ -51,7 +51,9 @@ test/             # unit tests (pytest)
 ## Testing & evaluation
 
 ```bash
-pytest test/                      # unit tests (no model needed)
+pip install -r requirements-dev.txt   # once, adds pytest
+pytest test/                      # unit tests (no model needed), with a live progress bar
+pytest test/ -v                   # same, listing each test by name
 python eval.py                    # run the agent on eval_data/meal_plan_cases.jsonl, graded by rules + LLM judge
 python eval.py --no-judge         # rule checks only (faster)
 ```
@@ -69,27 +71,31 @@ the meals make sense. Results are saved to `eval_results.json`.
 
 ### Latest results
 
-Agent: Llama 3 8B (MLX), temperature 0.7, no ingredient limit. Judge: Gemma 4 E4B. 5 cases × 3 runs.
+Agent: Llama 3 8B (MLX), temperature 0.7. Judge: Gemma 4 E4B. 5 cases × 3 runs (`eval_results.json`).
 
-| Case | Rule checks passed | Failed rule check | Judge passed | For review | Avg meal-plan time |
-|---|:-:|---|:-:|---|--:|
-| `veg_3day_breakfast_dinner` | 3/3 | — | 3/3 | `brown rice`; judge flagged granola as a nut risk | 48.0 s |
-| `two_day_all_meals` | 2/3 | no valid plan (JSON format) | 2/3 | — | 77.6 s |
-| `gluten_free_1day` | 3/3 | — | 3/3 | `cooked brown rice` | 35.7 s |
-| `dinner_only_4day_stocked_pantry` | 1/3 | pantry leak: `chicken breasts` | 3/3 | `brown rice` | 54.6 s |
-| `pescatarian_2day_lunch` | 2/3 | forbidden ingredient: `Crab-Free Tuna Wrap`¹ | 3/3 | — | 43.0 s |
-| **Overall** | **11/15 (73%)** | | **14/15 (93%)** | | |
+| Case | Rule checks passed | Failed rule check | Judge passed | Judge score (1–5) | For review | Avg meal-plan time |
+|---|:-:|---|:-:|:-:|---|--:|
+| `veg_3day_breakfast_dinner` | 3/3 | — | 2/3 | 4.33 | judge: granola may contain nuts | 54.0 s |
+| `two_day_all_meals` | 3/3 | — | 3/3 | 4.67 | — | 54.8 s |
+| `gluten_free_1day` | 3/3 | — | 3/3 | 4.67 | `sweet potatoes`, `cooked brown rice` | 33.7 s |
+| `dinner_only_4day_stocked_pantry` | 3/3¹ | — | 3/3 | 4.00 | — | 41.0 s |
+| `pescatarian_2day_lunch` | 2/3 | forbidden ingredient: `Crab-Free Quinoa Salad`² | 3/3 | 4.33 | — | 34.6 s |
+| **Overall** | **14/15 (93%)** | | **14/15 (93%)** | **4.40** | | |
 
-- **Real failures:** one run produced no valid plan, and two runs put `chicken breasts` on the shopping list despite
-  pantry `chicken breast`. The agent's pantry filter only removes exact matches.
-- ¹ **False alarm:** the meal-name check matched "crab" in "Crab-Free". The plan is fine.
-- **For review:** shopping items that might be pantry items, which don't fail the run, plus judge issues on passing plans.
-- The agent's plans come from one eval run; the rule checks and judge were re-applied afterwards with the
-  current graders. The 1–5 judge score wasn't recorded in that re-grading, so it isn't shown.
+Reading all 15 transcripts by hand, 12 runs are fine, 1 is borderline (granola in a "no nuts" plan) and 2 have a real problem:
+- ¹ **Missed by both graders:** in 2 dinner runs the model wrote each meal's ingredients as *one* comma-separated
+  string (`"pasta, canned tomatoes, olive oil, ..."`). The schema accepts it, the shopping list becomes 4 long
+  entries, and pantry items like `pasta` and `olive oil` aren't removed.
+- ² **False alarm:** the meal-name check matched "crab" in "Crab-Free". The plan is fine.
+- **Fixed since the last run:** no pantry leaks (`chicken breasts` is now removed) and every run produced a valid
+  plan. No plan needed a repair in this run, so the new nested-plan feedback wasn't exercised.
+- **For review:** shopping items that might be pantry items (they don't fail the run), plus judge issues.
+- The judge took ~29 s per plan on top of the meal-plan time.
 
 ## Known limitations
 
-- Pantry matching is exact: `chicken breasts` isn't recognised as pantry `chicken breast`.
+- Pantry matching works on free-text ingredient names (`ingredient_match.py`). Entries like `brown rice` vs pantry
+  `rice` stay on the shopping list, because they may be a different item.
 - Meal plans are extracted from the model's reply with a regex, then schema-validated and sent back for repair if invalid.
 - Single-user: pantry and memory are plain JSON files with no concurrent-access handling.
 
