@@ -54,11 +54,18 @@ _Last updated: 2026-11-12_
     - Different model family from the agent, so it isn't biased towards the agent's output
     - Its reasoning (thinking text) is stripped before the JSON verdict is parsed; `JUDGE_MAX_TOKENS` = 2048 so it isn't cut off
     - Gemma 4 12B was considered but needs `mlx-vlm`, which would have meant upgrading `mlx` and adding heavy dependencies
-28. ✅ **Three-way pantry check** in the eval:
-    - **Leak** (fails): the pantry item plus only words from `SAME_ITEM_QUALIFIERS` (fresh, chopped, boneless, skinless, large, organic, extra virgin, cooked, table)
-    - **Possible** (passes, listed under `possible_pantry_items` and in the summary for review): unknown leading words, e.g. "brown rice" ~ "rice"
-    - **Different item** (ignored): e.g. "rice vinegar" ~ "rice"
-    - Re-scoring the last run removed 3 false alarms (8/15 → 11/15); real leaks like "chicken breasts" still fail
+28. ✅ **Three-way pantry check** in the eval (`shopping_list_excludes_pantry`):
+    - **Task:** the shopping list must not contain anything the user already has in their pantry.
+    - **Fail:** a shopping-list entry is a pantry item, allowing plurals and words that don't change the item
+      (`SAME_ITEM_QUALIFIERS`: fresh, chopped, boneless, skinless, large, organic, extra virgin, cooked, table).
+      Example: pantry `chicken breast`, shopping list `boneless chicken breasts`.
+    - **Success:** no shopping-list entry is a pantry item. A different item that shares a word doesn't count:
+      pantry `rice`, shopping list `rice vinegar`; pantry `black pepper`, shopping list `pepper`.
+    - **Needs review (still a success):** the pantry item ends the entry, but after a word that isn't in
+      `SAME_ITEM_QUALIFIERS`, so it may be a different item. Example: pantry `rice`, shopping list `brown rice`.
+      These entries are listed under `possible_pantry_items` and in the summary. If a word turns out never to
+      change the item, add it to `SAME_ITEM_QUALIFIERS`.
+    - **Result:** re-scoring the last run removed 3 false alarms (8/15 → 11/15); real leaks like `chicken breasts` still fail.
 29. ✅ **README results** re-graded with the new judge and pantry check: rule checks 11/15, judge 14/15
 
 ---
