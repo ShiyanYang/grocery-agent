@@ -9,6 +9,7 @@ Tests cover critical, easy-to-break functionality:
 - Integration workflow (end-to-end)
 """
 
+import json
 import pytest
 from unittest.mock import MagicMock, patch
 from agent import Agent
@@ -180,15 +181,31 @@ def test_all_ingredients_in_pantry(agent):
 
 # ============ EDGE CASES: EASY-TO-BREAK SCENARIOS ============
 
-def test_filter_case_sensitive_partial_match(agent):
-    """Test that 'Tomato' and 'tomatoes' are NOT matched (not case-folding to contains)."""
-    ingredients = ["tomatoes"]
-    pantry = ["tomato"]
-    
-    result = agent._filter_out_pantry_items(ingredients, pantry)
-    
-    # Should NOT filter because "tomato" != "tomatoes"
-    assert "tomatoes" in result
+def test_filter_removes_plural_of_pantry_item(agent):
+    """'tomatoes' is the same item as pantry 'tomato' (this used to stay on the list)."""
+    result = agent._filter_out_pantry_items(["tomatoes"], ["tomato"])
+    assert result == []
+
+
+@pytest.mark.parametrize("ingredient,pantry_item,kept", [
+    ("chicken breasts", "chicken breast", False),          # seen in eval runs
+    ("boneless chicken breasts", "chicken breast", False),  # seen in eval runs
+    ("table salt", "salt", False),                          # seen in eval runs
+    ("Extra Virgin Olive Oil", "olive oil", False),
+    ("brown rice", "rice", True),       # may be a different item: keep it
+    ("sweet potatoes", "potatoes", True),
+    ("rice vinegar", "rice", True),
+    ("garlic powder", "garlic", True),
+    ("pepper", "black pepper", True),
+    ("eggplant", "egg", True),
+])
+def test_filter_uses_eval_leak_rules(agent, ingredient, pantry_item, kept):
+    result = agent._filter_out_pantry_items([ingredient], [pantry_item])
+    assert (ingredient in result) is kept
+
+
+def test_filter_ignores_blank_pantry_entries(agent):
+    assert agent._filter_out_pantry_items(["eggs"], ["", "  "]) == ["eggs"]
 
 
 def test_pantry_search_caches_result(agent):
@@ -234,3 +251,35 @@ def test_generate_meal_plan_accepts_markdown_wrapped_json(agent):
     assert meal_plan is not None
     assert meal_plan[0]["meal_type"] == "breakfast"
     assert meal_plan[0]["ingredients"] == ["eggs", "spinach"]
+
+# ============ MEAL PLAN EXTRACTION ============
+
+FLAT_PLAN = [{"day": "Day 1", "meal_type": "dinner", "meal_name": "Stir fry", "ingredients": ["tofu", "rice"]}]
+
+
+def test_nested_plan_gets_shape_feedback_not_json_error(agent):
+    """Meals grouped inside a day are valid JSON in the wrong shape (seen in a real eval run)."""
+    nested = json.dumps([{"day": "Day 1", "meals": [{"meal_type": "dinner", "meal_name": "Stir fry",
+                                                     "ingredients": ["tofu", "rice"]}]}])
+    plan, feedback = agent._check_meal_plan("Here is your plan: " + nested)
+    assert plan is None
+    assert "not valid JSON" not in feedback
+    assert "does not match the schema" in feedback
+    assert "one flat list" in feedback
+
+
+def test_plan_with_text_and_code_fences_around_it_is_accepted(agent):
+    reply = "Here is your plan:\n```json\n" + json.dumps(FLAT_PLAN) + "\n```\nEnjoy! [Note: adjust portions]"
+    assert agent._check_meal_plan(reply) == (FLAT_PLAN, None)
+
+
+def test_cut_off_plan_gets_json_feedback(agent):
+    """A plan cut off mid-way is a broken plan, not a follow-up question."""
+    cut_off = json.dumps(FLAT_PLAN * 3)[:-30]
+    plan, feedback = agent._check_meal_plan(cut_off)
+    assert plan is None
+    assert "not valid JSON" in feedback
+
+
+def test_reply_without_plan_is_a_follow_up(agent):
+    assert agent._check_meal_plan("Any allergies? I can use [brackets] too.") == (None, None)

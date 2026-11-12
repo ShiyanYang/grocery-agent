@@ -34,6 +34,8 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Callable, Dict, List, Optional
 from agent import Agent
+from ingredient_match import SAME_ITEM_QUALIFIERS  # noqa: F401  (re-exported: edit the list in ingredient_match.py)
+from ingredient_match import normalize as _norm, pantry_match as _pantry_match, term_pattern as _term_pattern
 from memory import Memory
 from config import config
 
@@ -64,50 +66,9 @@ def load_cases(path: str) -> List[Dict[str, Any]]:
 
 # ============ SCORING ============
 
-def _norm(s: Any) -> str:
-    return str(s).strip().lower()
-
-
-def _term_pattern(term: str) -> str:
-    return r"\b" + re.escape(_norm(term)) + r"(e?s)?\b"
-
-
 def _contains_term(ingredient: str, term: str) -> bool:
     """Whole-word match allowing a plural suffix, so 'egg' matches 'eggs' but not 'eggplant'."""
     return re.search(_term_pattern(term), _norm(ingredient)) is not None
-
-
-# Words that describe an item without changing what it is: "boneless chicken breast" is still
-# chicken breast. Words NOT listed here are treated as possibly changing the item ("brown rice"),
-# and those entries are reported for review instead of failing the run. Add a word here once
-# you've decided it never changes the item.
-SAME_ITEM_QUALIFIERS = {
-    "fresh", "chopped", "boneless", "skinless", "large", "organic", "extra virgin",
-    "cooked", "table",
-}
-
-
-def _pantry_match(item: str, pantry_item: str) -> Optional[str]:
-    """Compare one shopping-list entry with one pantry item.
-
-    Returns "leak" when the entry is the pantry item (allowing plurals and SAME_ITEM_QUALIFIERS):
-    'eggs' ~ 'egg', 'boneless chicken breasts' ~ 'chicken breast'.
-    Returns "possible" when the pantry item ends the entry but other words come first:
-    'brown rice' ~ 'rice', 'sweet potatoes' ~ 'potatoes'.
-    Returns None when it is a different item: 'rice vinegar' ~ 'rice', 'pepper' ~ 'black pepper'.
-    """
-    match = re.search(_term_pattern(pantry_item) + r"$", _norm(item))
-    if match is None:
-        return None
-
-    leading_words = _norm(item)[:match.start()]
-    for qualifier in sorted(SAME_ITEM_QUALIFIERS, key=len, reverse=True):  # "extra virgin" first
-        leading_words = re.sub(r"\b" + re.escape(qualifier) + r"\b", " ", leading_words)
-    leading_words = re.sub(r"[^a-z]+", " ", leading_words).strip()
-
-    if leading_words:
-        return "possible"
-    return "leak"
 
 
 def _meals(meal_plan: Any) -> List[Dict[str, Any]]:

@@ -145,10 +145,22 @@ def _meal(n_ingredients, name="Stew", day="Day 1"):
 def test_invalid_json_plan_is_sent_back_and_fixed(agent):
     broken = '[{"day": "Day 1", "meal_type": "dinner", "meal_name": "X", "ingredients": ["a",]}]'
     good = json.dumps([_meal(3)])
-    with patch.object(agent, "generate_text", side_effect=[broken, good]) as gen:
+    replies = iter([broken, good])
+    # A copy of the messages the model received on each call. The agent keeps adding to the same
+    # list after each call, so the mock's own record would show later messages too.
+    seen = []
+
+    def fake_generate(messages):
+        seen.append(list(messages))
+        return next(replies)
+
+    with patch.object(agent, "generate_text", side_effect=fake_generate):
         plan = agent.generate_meal_plan(input_fn=lambda _: "1 day", output_fn=lambda _: None)
     assert plan == json.loads(good)
-    assert "not valid JSON" in gen.call_args_list[1].args[0][-1]["content"]
+    assert len(seen) == 2
+    repair_request = seen[1][-1]
+    assert repair_request["role"] == "user"
+    assert "not valid JSON" in repair_request["content"]
 
 
 def test_repair_gives_up_after_max_attempts(agent):
