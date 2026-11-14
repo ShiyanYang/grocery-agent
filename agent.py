@@ -118,13 +118,13 @@ class Agent:
         input_fn = input_fn or input
         output_fn = output_fn or print
         
-        system_prompt = """You role is to assistant the user for meal planning.
+        system_prompt = """Your role is to assist the user with meal planning.
 
-        CRITICAL INSTRUCTIONS: 
+        CRITICAL INSTRUCTIONS:
         1. The first question is always about the number of days for meal planning.
-        2. Your need to understand the user's needs.
+        2. You need to understand the user's needs.
         3. After each question, your next response is either a follow-up question or the meal plan.
-        4. The meal plan response is a ONLY JSON format. It must follow the following schema. 
+        4. The meal plan response must be in JSON format only. It must follow this schema:
     '''
     [
       {"day": "Day 1", "meal_type": "breakfast", "meal_name": "...", "ingredients": ["...", "..."]},
