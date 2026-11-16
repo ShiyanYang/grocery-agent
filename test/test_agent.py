@@ -24,7 +24,7 @@ def agent():
     mock_tokenizer.apply_chat_template.return_value = "prompt"
     with patch("agent.load", return_value=(MagicMock(), mock_tokenizer)):
         with patch("agent.Memory"):
-            return Agent(model_path="mock/path/to/model.gguf")
+            return Agent(model_path="mock/path/to/model")
 
 # ============ CORE BUSINESS LOGIC: SHOPPING LIST GENERATION ============
 

@@ -30,7 +30,7 @@ environment variables or a `.env` file (see `.env.example`).
 
 ```bash
 python main.py      # chat to create a meal plan, then print the shopping list
-python run_gui.py   # desktop chat window for one-off questions (no meal-plan flow yet)
+python run_gui.py   # same meal planner in a desktop window, with pantry editing and a meal-plan table
 python app.py       # manage the pantry: list, add <item>, remove <item>, help, quit
 ```
 
@@ -42,7 +42,7 @@ pantry.py         # pantry storage (data/pantry.json)
 memory.py         # conversation history (memory/conversation.json)
 config.py         # settings with env-var overrides
 main.py, app.py   # CLI entry points (meal planner, pantry manager)
-chat_gui.py       # Tkinter chat GUI (run via run_gui.py)
+chat_gui.py       # Tkinter GUI for the meal planner (run via run_gui.py)
 eval.py           # evaluation harness
 eval_data/        # golden eval cases (JSONL)
 test/             # unit tests (pytest)

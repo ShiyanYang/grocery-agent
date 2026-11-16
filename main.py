@@ -10,17 +10,17 @@ def main():
         model_path = config.MODEL_PATH
         
         logger.info(f"Agent is using {os.path.basename(model_path)}")
-        receipt_agent = Agent(model_path)
+        agent = Agent(model_path)
         
         logger.info("Generating meal plan...")
-        meal_plan = receipt_agent.generate_meal_plan()
+        meal_plan = agent.generate_meal_plan()
         
         if not meal_plan:
             logger.warning("No meal plan generated")
             return
         
         logger.info("Generating shopping list...")
-        shopping_list = receipt_agent.generate_shopping_list(meal_plan)
+        shopping_list = agent.generate_shopping_list(meal_plan)
         
         print(f"\nThe shopping list is:")
         for item in shopping_list:

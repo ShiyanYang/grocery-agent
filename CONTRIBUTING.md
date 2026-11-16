@@ -178,8 +178,8 @@ def process_items(items: List[str], filter_str: Optional[str] = None) -> List[st
 
 ### 1. Fork and Clone
 ```bash
-git clone https://github.com/ShiyanYang/receipt_agent.git
-cd receipt_agent
+git clone https://github.com/ShiyanYang/grocery-agent.git grocery_agent
+cd grocery_agent
 ```
 
 ### 2. Create Virtual Environment

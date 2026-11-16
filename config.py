@@ -29,8 +29,6 @@ class Config:
     # ============ LLM Settings ============
     # MLX loads local model directories, not individual GGUF files.
     MODEL_PATH = os.getenv("MODEL_PATH", "./models/llama-3-8b-instruct-mlx")
-    LLM_N_CTX = int(os.getenv("LLM_N_CTX", "2048"))
-    LLM_N_THREADS = int(os.getenv("LLM_N_THREADS", "4"))
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 
@@ -98,7 +96,6 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     """Testing configuration with small/fast model."""
     MODEL_PATH = os.getenv("MODEL_PATH", "mlx-community/Llama-3-8B-Instruct-4bit")
-    LLM_N_THREADS = 2
     LLM_MAX_TOKENS = 256
     LOG_LEVEL = "DEBUG"
 
