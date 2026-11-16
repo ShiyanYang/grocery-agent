@@ -49,6 +49,7 @@ _Last updated: 2026-11-16_
 ### Round 5: chat GUI
 35. ✅ **GUI runs the real agent**: `chat_gui.py` runs `generate_meal_plan()` and `generate_shopping_list()` on a worker thread, like `main.py`, with `agent.py` unchanged. Tested with a fake agent only.
 36. ✅ **GUI usability**: editable pantry panel, the meal plan as a table with a per-meal "To buy" column, speaker icons, and a processing animation instead of the spinning wheel.
+37. ✅ **Friendlier GUI redesign**: a warm kitchen theme with chat bubbles, tap-to-answer suggestions, the meal plan as day cards, a tick-off shopping list, and the agent's internal status messages hidden or turned into plain words.
 
 ---
 

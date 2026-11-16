@@ -8,74 +8,275 @@ agent.py is not changed. generate_meal_plan() takes an input_fn and an output_fn
 GUI passes its own versions: input_fn waits for the user to type in the chat box, and
 output_fn shows the agent's messages in the chat box. The agent runs on a worker thread
 so the window stays responsive while the model is working.
+
+The look is meant to feel like a friendly kitchen helper rather than a tool:
+warm colors, chat bubbles, tap-to-answer suggestions, the meal plan as day cards,
+and a shopping list you can tick off while you shop.
 """
+import logging
 import queue
 import re
+import sys
 import threading
 import tkinter as tk
+from datetime import datetime
 from tkinter import ttk
 
 from config import config
 from pantry import load_pantry, save_pantry
 
-# Colors used across the window.
-BG_WINDOW = "#000000"
-BG_CARD = "#111111"
-BG_INPUT = "#000000"
-BORDER = "#2a2a2a"
-TEXT_MAIN = "#ffffff"
-TEXT_MUTED = "#9ca3af"
-USER_COLOR = "#60a5fa"
-ASSISTANT_COLOR = "#34d399"
-STATUS_COLOR = "#fbbf24"
+logger = logging.getLogger(__name__)
 
-# Who is speaking: (emoji, display name, color).
-SPEAKERS = {
-    "user": ("🧑", "You", USER_COLOR),
-    "assistant": ("🛒", "Grocery Agent", ASSISTANT_COLOR),
-    "status": ("⚙️", "Agent status", STATUS_COLOR),
-}
+# ----------------------------------------------------------------------
+# Colors: a warm, kitchen-like palette.
+# ----------------------------------------------------------------------
+BG_WINDOW = "#F4EEE3"       # soft cream behind everything
+BG_CARD = "#FFFDF9"         # white-ish cards
+BG_SOFT = "#F7F2E9"         # light fill for rows and the assistant's bubbles
+BORDER = "#E6DCCB"
+TEXT_MAIN = "#3D3A35"
+TEXT_MUTED = "#8C8478"
+GREEN = "#5E8C5B"           # main accent (sage green)
+GREEN_DARK = "#4B7349"
+GREEN_LIGHT = "#E8F0E4"
+TERRACOTTA = "#C2654A"      # things to buy
+DISABLED_BG = "#E9E3D8"
+DISABLED_FG = "#B3AA9C"
 
+USER_BUBBLE_BG = GREEN
+USER_BUBBLE_FG = "#FFFFFF"
+ASSISTANT_BUBBLE_BG = BG_SOFT
+ASSISTANT_BUBBLE_FG = TEXT_MAIN
+ASSISTANT_AVATAR = "🍳"
+
+# ----------------------------------------------------------------------
+# Fonts. Tk falls back to the system font if one is not installed.
+# ----------------------------------------------------------------------
+TITLE_FONT = ("Georgia", 24, "bold")
+HEADING_FONT = ("Georgia", 17, "bold")
+DAY_FONT = ("Georgia", 15, "bold")
+BODY_FONT = ("Helvetica", 14)
+BODY_BOLD_FONT = ("Helvetica", 14, "bold")
+SMALL_FONT = ("Helvetica", 12)
+SMALL_BOLD_FONT = ("Helvetica", 11, "bold")
+BUTTON_FONT = ("Helvetica", 13, "bold")
+EMOJI_FONT = ("Helvetica", 22)
+
+# ----------------------------------------------------------------------
+# Reading the agent's messages.
+# ----------------------------------------------------------------------
 # The agent prefixes model replies with this (see Agent._ask).
 ANSWER_PREFIX = "Answer:"
 
-# Agent messages that report on its own progress rather than talk to the user.
-STATUS_PREFIXES = (
-    "Meal plan rejected",
-    "Meal plan generated",
-    "Could not get a valid meal plan",
-    "MLX model generation is not available",
-)
-
 # A model reply that contains a meal plan: a JSON list of objects (same check as
-# Agent._check_meal_plan). The plan itself is shown as a table, not as JSON.
+# Agent._check_meal_plan). The plan itself is shown as cards, not as JSON.
 PLAN_START = re.compile(r"\[\s*\{")
 
-# Meal plan table: (column title, wrap width in pixels).
-TABLE_COLUMNS = [
-    ("Day", 70),
-    ("Meal", 80),
-    ("Dish", 150),
-    ("Ingredients", 220),
-    ("To buy", 180),
-]
-TABLE_HEADER_BG = "#1f2937"
-TABLE_ROW_BGS = ["#0b0b0b", "#161616"]
+# Behind-the-scenes agent messages, turned into friendly words (or hidden).
+PLAN_REJECTED_PREFIX = "Meal plan rejected"
+PLAN_ACCEPTED_PREFIX = "Meal plan generated"
+PLAN_FAILED_PREFIX = "Could not get a valid meal plan"
+MODEL_MISSING_PREFIX = "MLX model generation is not available"
 
-# Frames for the "thinking" animation shown in the chat box.
+# What the "thinking" bubble says while the agent is busy.
+THINKING_LABELS = {
+    "Starting": "Getting ready",
+    "Loading model": "Warming up the kitchen",
+    "Thinking": "Thinking",
+    "Building shopping list": "Writing your shopping list",
+}
+
+# ----------------------------------------------------------------------
+# Tap-to-answer suggestions: (button text, message sent to the agent).
+# ----------------------------------------------------------------------
+DAY_SUGGESTIONS = [
+    ("3 days", "3 days"),
+    ("5 days", "5 days"),
+    ("A whole week", "7 days"),
+]
+PREFERENCE_SUGGESTIONS = [
+    ("🥦 Vegetarian", "Vegetarian meals, please."),
+    ("⚡ Quick & easy", "Quick and easy meals, 30 minutes or less."),
+    ("🧒 Kid-friendly", "Kid-friendly meals that children will enjoy."),
+    ("💰 Budget-friendly", "Budget-friendly meals, please."),
+    ("🎲 Surprise me", "No special requests - surprise me!"),
+]
+
+# Icons for each meal of the day.
+MEAL_ICONS = {
+    "breakfast": "🍳",
+    "brunch": "🥞",
+    "lunch": "🥗",
+    "dinner": "🍲",
+    "supper": "🍲",
+    "snack": "🍎",
+    "dessert": "🍰",
+}
+
+# How wide text may get, as a share of the chat area's width.
+BUBBLE_WIDTH_SHARE = 0.62
+CARD_TEXT_WIDTH_SHARE = 0.72
+
+# Frames for the "thinking" animation.
 THINKING_FRAMES = ["🥕", "🥦", "🍅", "🧀", "🍞", "🥚"]
-THINKING_DOTS = ["   ", ".  ", ".. ", "..."]
-ANIMATION_DELAY_MS = 150
+THINKING_DOTS = ["", ".", "..", "..."]
+ANIMATION_DELAY_MS = 180
 EVENT_POLL_MS = 100
 
 
+def greeting_for_now():
+    hour = datetime.now().hour
+    if hour < 12:
+        return "Good morning!"
+    if hour < 18:
+        return "Good afternoon!"
+    return "Good evening!"
+
+
+# ======================================================================
+# Small reusable widgets
+# ======================================================================
+
+class PillButton(tk.Label):
+    """A colored, clickable button.
+
+    Built from a Label because tk.Button ignores custom colors on macOS.
+    """
+
+    def __init__(self, parent, text, command, bg=GREEN, fg="#FFFFFF",
+                 hover_bg=GREEN_DARK, font=BUTTON_FONT, padx=18, pady=9, border=None):
+        super().__init__(parent, text=text, bg=bg, fg=fg, font=font,
+                         padx=padx, pady=pady, cursor="hand2")
+        if border:
+            self.config(highlightbackground=border, highlightthickness=1)
+        self.command = command
+        self.normal_bg = bg
+        self.normal_fg = fg
+        self.hover_bg = hover_bg
+        self.enabled = True
+        self.bind("<Button-1>", self.on_click)
+        self.bind("<Enter>", self.on_hover)
+        self.bind("<Leave>", self.on_leave)
+
+    def on_click(self, _event=None):
+        if self.enabled:
+            self.command()
+
+    def on_hover(self, _event=None):
+        if self.enabled:
+            self.config(bg=self.hover_bg)
+
+    def on_leave(self, _event=None):
+        if self.enabled:
+            self.config(bg=self.normal_bg)
+
+    def set_enabled(self, enabled):
+        self.enabled = enabled
+        if enabled:
+            self.config(bg=self.normal_bg, fg=self.normal_fg, cursor="hand2")
+        else:
+            self.config(bg=DISABLED_BG, fg=DISABLED_FG, cursor="arrow")
+
+
+class PlaceholderEntry(tk.Entry):
+    """A text box that shows grey hint text while it is empty."""
+
+    def __init__(self, parent, placeholder, **options):
+        super().__init__(parent, **options)
+        self.placeholder = placeholder
+        self.showing_placeholder = False
+        self.bind("<FocusIn>", self.hide_placeholder)
+        self.bind("<FocusOut>", self.show_placeholder_if_empty)
+        self.show_placeholder_if_empty()
+
+    def hide_placeholder(self, _event=None):
+        if self.showing_placeholder:
+            self.delete(0, "end")
+            self.config(fg=TEXT_MAIN)
+            self.showing_placeholder = False
+
+    def show_placeholder_if_empty(self, _event=None):
+        if self.get() == "" and self.focus_get() is not self:
+            self.insert(0, self.placeholder)
+            self.config(fg=TEXT_MUTED)
+            self.showing_placeholder = True
+
+    def set_placeholder(self, text):
+        self.placeholder = text
+        if self.showing_placeholder:
+            old_state = self.cget("state")
+            self.config(state="normal")
+            self.delete(0, "end")
+            self.insert(0, text)
+            self.config(state=old_state)
+
+    def get_text(self):
+        if self.showing_placeholder:
+            return ""
+        return self.get().strip()
+
+    def set_text(self, text):
+        self.hide_placeholder()
+        self.delete(0, "end")
+        self.insert(0, text)
+
+    def clear(self):
+        self.delete(0, "end")
+        self.showing_placeholder = False
+        self.show_placeholder_if_empty()
+
+
+class ScrollableFrame(tk.Frame):
+    """A frame with a vertical scrollbar. Put content inside self.inner."""
+
+    def __init__(self, parent, bg):
+        super().__init__(parent, bg=bg)
+        self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.inner = tk.Frame(self.canvas, bg=bg)
+        self.window_id = self.canvas.create_window((0, 0), window=self.inner, anchor="nw")
+        self.canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.inner.bind("<Configure>", self.update_scroll_region)
+        self.canvas.bind("<Configure>", self.match_inner_width)
+
+    def update_scroll_region(self, _event=None):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def match_inner_width(self, event):
+        self.canvas.itemconfigure(self.window_id, width=event.width)
+
+    def contains(self, widget):
+        """True if widget is this frame's canvas or anything inside it."""
+        return str(widget).startswith(str(self.canvas))
+
+    def scroll(self, steps):
+        # Nothing to scroll when everything already fits.
+        if self.canvas.yview() == (0.0, 1.0):
+            return
+        self.canvas.yview_scroll(steps, "units")
+
+    def scroll_to_bottom(self):
+        self.canvas.update_idletasks()
+        self.update_scroll_region()
+        self.canvas.yview_moveto(1.0)
+
+
+# ======================================================================
+# The main window
+# ======================================================================
+
 class GroceryAgentChatGUI:
-    """Chat window with an editable pantry panel on the side."""
+    """Chat with the meal planner, with "My Kitchen" (the pantry) on the side."""
 
     def __init__(self, root):
         self.root = root
-        self.root.title("Grocery Agent")
-        self.root.geometry("1200x820")
+        self.root.title("Meal Planner")
+        self.root.geometry("1200x840")
+        self.root.minsize(900, 620)
         self.root.configure(bg=BG_WINDOW)
 
         self.agent = None
@@ -86,13 +287,23 @@ class GroceryAgentChatGUI:
 
         self.session_running = False
         self.waiting_for_user = False
+        self.replies_this_session = 0
+
         self.animation_running = False
         self.animation_label = "Thinking"
         self.animation_step = 0
         self.animation_timer = None
+        self.thinking_row = None
+        self.thinking_text = None
+
+        # Labels whose wrap width follows the chat width: (label, share of width).
+        self.wrapping_labels = []
+        # Index of the pantry item being renamed, or None when adding.
+        self.editing_index = None
 
         self.build_ui()
         self.refresh_pantry_list()
+        self.bind_mouse_wheel()
         self.poll_events()
         self.start_session()
 
@@ -102,279 +313,340 @@ class GroceryAgentChatGUI:
 
     def build_ui(self):
         outer = tk.Frame(self.root, bg=BG_WINDOW)
-        outer.pack(fill="both", expand=True, padx=22, pady=22)
+        outer.pack(fill="both", expand=True, padx=24, pady=24)
 
-        # Pantry panel on the left, chat fills the rest on the right.
-        pantry_card = self.make_card(outer)
-        pantry_card.pack(side="left", fill="y", padx=(0, 16))
-        self.build_pantry_panel(pantry_card)
+        # "My Kitchen" on the left, the chat fills the rest on the right.
+        kitchen_card = self.make_card(outer)
+        kitchen_card.config(width=310)
+        kitchen_card.pack_propagate(False)
+        kitchen_card.pack(side="left", fill="y", padx=(0, 20))
+        self.build_kitchen_panel(kitchen_card)
 
         chat_card = self.make_card(outer)
         chat_card.pack(side="right", fill="both", expand=True)
         self.build_chat_panel(chat_card)
 
     def make_card(self, parent):
-        return tk.Frame(
+        return tk.Frame(parent, bg=BG_CARD, highlightbackground=BORDER,
+                        highlightthickness=1, padx=22, pady=20)
+
+    def make_text_entry(self, parent, placeholder):
+        return PlaceholderEntry(
             parent,
-            bg=BG_CARD,
+            placeholder,
+            font=BODY_FONT,
+            relief="flat",
+            bg="#FFFFFF",
+            fg=TEXT_MAIN,
+            disabledbackground=BG_SOFT,
+            disabledforeground=TEXT_MUTED,
+            insertbackground=TEXT_MAIN,
             highlightbackground=BORDER,
-            highlightthickness=1,
-            padx=18,
-            pady=18,
+            highlightcolor=GREEN,
+            highlightthickness=2,
         )
 
     def build_chat_panel(self, card):
-        topbar = tk.Frame(card, bg=BG_CARD)
-        topbar.pack(fill="x", pady=(0, 14))
+        # Header: a friendly greeting and a "new plan" button.
+        header = tk.Frame(card, bg=BG_CARD)
+        header.pack(fill="x", pady=(0, 14))
 
-        title_block = tk.Frame(topbar, bg=BG_CARD)
+        title_block = tk.Frame(header, bg=BG_CARD)
         title_block.pack(side="left")
-        tk.Label(
-            title_block,
-            text="Grocery Agent",
-            font=("Arial", 20, "bold"),
-            fg=TEXT_MAIN,
-            bg=BG_CARD,
-        ).pack(anchor="w")
-        tk.Label(
-            title_block,
-            text="Meal planning and pantry assistant",
-            font=("Arial", 10),
-            fg=TEXT_MUTED,
-            bg=BG_CARD,
-        ).pack(anchor="w", pady=(4, 0))
+        tk.Label(title_block, text=f"{greeting_for_now()} 🌿", font=TITLE_FONT,
+                 fg=TEXT_MAIN, bg=BG_CARD).pack(anchor="w")
+        tk.Label(title_block, text="Let's plan your meals together - I'll write the shopping list for you.",
+                 font=SMALL_FONT, fg=TEXT_MUTED, bg=BG_CARD).pack(anchor="w", pady=(4, 0))
 
-        self.new_plan_button = self.make_button(topbar, "New plan", self.start_session)
-        self.new_plan_button.pack(side="right")
-
-        # Input row is packed before the chat box so it always stays visible.
-        input_frame = tk.Frame(card, bg=BG_CARD)
-        input_frame.pack(side="bottom", fill="x", pady=(18, 0))
-
-        self.user_input = tk.Entry(
-            input_frame,
-            font=("Arial", 12),
-            relief="flat",
-            bg=BG_INPUT,
-            fg=TEXT_MAIN,
-            insertbackground=TEXT_MAIN,
-            highlightbackground="#3a3a3a",
-            highlightthickness=1,
+        self.new_plan_button = PillButton(
+            header, "＋  New meal plan", self.start_session,
+            bg=GREEN_LIGHT, fg=GREEN_DARK, hover_bg="#D9E7D3",
         )
-        self.user_input.pack(side="left", fill="x", expand=True, ipady=12)
+        self.new_plan_button.pack(side="right", anchor="n")
+
+        # Bottom area, packed before the chat so it always stays visible.
+        bottom = tk.Frame(card, bg=BG_CARD)
+        bottom.pack(side="bottom", fill="x", pady=(14, 0))
+
+        self.suggestion_bar = tk.Frame(bottom, bg=BG_CARD)
+        self.suggestion_bar.pack(fill="x", pady=(0, 10))
+
+        input_row = tk.Frame(bottom, bg=BG_CARD)
+        input_row.pack(fill="x")
+        self.user_input = self.make_text_entry(input_row, "Type your answer here...")
+        self.user_input.pack(side="left", fill="x", expand=True, ipady=11)
         self.user_input.bind("<Return>", self.on_submit)
 
-        self.send_button = self.make_button(input_frame, "Send", self.send_message)
+        self.send_button = PillButton(input_row, "Send  ➤", self.send_message, pady=11)
         self.send_button.pack(side="right", padx=(10, 0))
 
-        chat_frame = tk.Frame(card, bg=BG_INPUT)
-        chat_frame.pack(fill="both", expand=True)
+        # The conversation itself.
+        self.chat = ScrollableFrame(card, BG_CARD)
+        self.chat.pack(fill="both", expand=True)
+        self.chat.canvas.bind("<Configure>", self.on_chat_resize, add="+")
 
-        self.chat_box = tk.Text(
-            chat_frame,
-            wrap="word",
-            bg=BG_INPUT,
-            fg=TEXT_MAIN,
-            relief="flat",
-            font=("Arial", 12),
-            padx=12,
-            pady=12,
-            state="disabled",
+    def build_kitchen_panel(self, card):
+        tk.Label(card, text="🧺 My Kitchen", font=HEADING_FONT, fg=TEXT_MAIN,
+                 bg=BG_CARD).pack(anchor="w")
+        tk.Label(card, text="Things you already have at home.\nI'll leave them off your shopping list.",
+                 font=SMALL_FONT, fg=TEXT_MUTED, bg=BG_CARD, justify="left").pack(anchor="w", pady=(4, 12))
+
+        # Add / rename box at the bottom.
+        bottom = tk.Frame(card, bg=BG_CARD)
+        bottom.pack(side="bottom", fill="x", pady=(12, 0))
+
+        self.pantry_entry = self.make_text_entry(bottom, "Add an item, e.g. eggs")
+        self.pantry_entry.pack(fill="x", ipady=8)
+        self.pantry_entry.bind("<Return>", lambda _event: self.save_pantry_entry())
+
+        button_row = tk.Frame(bottom, bg=BG_CARD)
+        button_row.pack(fill="x", pady=(8, 0))
+        self.pantry_save_button = PillButton(button_row, "＋ Add", self.save_pantry_entry, pady=7)
+        self.pantry_save_button.pack(side="left")
+        self.pantry_cancel_button = PillButton(
+            button_row, "Cancel", self.stop_editing_pantry_item,
+            bg=BG_CARD, fg=TEXT_MUTED, hover_bg=BG_SOFT, pady=7,
         )
-        scrollbar = ttk.Scrollbar(chat_frame, orient="vertical", command=self.chat_box.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.chat_box.pack(side="left", fill="both", expand=True)
-        self.chat_box.config(yscrollcommand=scrollbar.set)
+        # The cancel button is only shown while renaming an item.
 
-        # Text styles for each speaker.
-        for sender, (_, _, color) in SPEAKERS.items():
-            self.chat_box.tag_config(
-                f"{sender}_name", foreground=color, font=("Arial", 12, "bold")
-            )
-            self.chat_box.tag_config(
-                f"{sender}_text", lmargin1=28, lmargin2=28, spacing3=14
-            )
-        self.chat_box.tag_config("status_text", foreground=TEXT_MUTED, font=("Arial", 11))
-        self.chat_box.tag_config("thinking", foreground=TEXT_MUTED, font=("Arial", 12, "italic"))
-
-    def build_pantry_panel(self, card):
-        tk.Label(
-            card,
-            text="🧺 Pantry",
-            font=("Arial", 16, "bold"),
-            fg=TEXT_MAIN,
-            bg=BG_CARD,
-        ).pack(anchor="w")
-
-        tk.Label(
-            card,
-            text="Select an item to edit or remove it.",
-            font=("Arial", 10),
-            fg=TEXT_MUTED,
-            bg=BG_CARD,
-        ).pack(anchor="w", pady=(4, 10))
-
-        self.pantry_listbox = tk.Listbox(
-            card,
-            width=28,
-            bg=BG_INPUT,
-            fg=TEXT_MAIN,
-            selectbackground="#374151",
-            selectforeground=TEXT_MAIN,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground="#3a3a3a",
-            font=("Arial", 12),
-            activestyle="none",
-            exportselection=False,
-        )
-        self.pantry_listbox.pack(fill="both", expand=True)
-        self.pantry_listbox.bind("<<ListboxSelect>>", self.on_pantry_select)
-
-        self.pantry_entry = tk.Entry(
-            card,
-            font=("Arial", 12),
-            relief="flat",
-            bg=BG_INPUT,
-            fg=TEXT_MAIN,
-            insertbackground=TEXT_MAIN,
-            highlightbackground="#3a3a3a",
-            highlightthickness=1,
-        )
-        self.pantry_entry.pack(fill="x", pady=(12, 8), ipady=8)
-        self.pantry_entry.bind("<Return>", lambda _event: self.add_pantry_item())
-
-        button_row = tk.Frame(card, bg=BG_CARD)
-        button_row.pack(fill="x")
-        self.make_button(button_row, "Add", self.add_pantry_item).pack(
-            side="left", expand=True, fill="x"
-        )
-        self.make_button(button_row, "Update", self.update_pantry_item).pack(
-            side="left", expand=True, fill="x", padx=6
-        )
-        self.make_button(button_row, "Remove", self.remove_pantry_item).pack(
-            side="left", expand=True, fill="x"
-        )
-
-        self.pantry_status = tk.Label(
-            card, text="", font=("Arial", 10), fg=TEXT_MUTED, bg=BG_CARD, anchor="w"
-        )
+        self.pantry_status = tk.Label(bottom, text="", font=SMALL_FONT, fg=GREEN_DARK,
+                                      bg=BG_CARD, anchor="w", justify="left", wraplength=260)
         self.pantry_status.pack(fill="x", pady=(8, 0))
 
-    def make_button(self, parent, text, command):
-        return tk.Button(
-            parent,
-            text=text,
-            command=command,
-            bg=TEXT_MAIN,
-            fg=BG_WINDOW,
-            font=("Arial", 11, "bold"),
-            relief="flat",
-            padx=12,
-            pady=8,
-            cursor="hand2",
-        )
+        self.pantry_count = tk.Label(card, text="", font=SMALL_BOLD_FONT, fg=TEXT_MUTED,
+                                     bg=BG_CARD, anchor="w")
+        self.pantry_count.pack(fill="x", pady=(0, 6))
+
+        self.pantry_list = ScrollableFrame(card, BG_CARD)
+        self.pantry_list.pack(fill="both", expand=True)
 
     # ------------------------------------------------------------------
-    # Pantry editing
+    # Scrolling and resizing
+    # ------------------------------------------------------------------
+
+    def bind_mouse_wheel(self):
+        self.root.bind_all("<MouseWheel>", self.on_mouse_wheel)
+        # Linux sends scroll events as button 4 (up) and 5 (down).
+        self.root.bind_all("<Button-4>", lambda event: self.scroll_area_under(event, -1))
+        self.root.bind_all("<Button-5>", lambda event: self.scroll_area_under(event, 1))
+
+    def on_mouse_wheel(self, event):
+        if sys.platform == "darwin":
+            steps = -event.delta
+        else:
+            steps = -event.delta // 120
+        self.scroll_area_under(event, steps)
+
+    def scroll_area_under(self, event, steps):
+        widget = self.root.winfo_containing(event.x_root, event.y_root)
+        if widget is None:
+            return
+        for area in (self.chat, self.pantry_list):
+            if area.contains(widget):
+                area.scroll(steps)
+                return
+
+    def on_chat_resize(self, event):
+        still_shown = []
+        for label, share in self.wrapping_labels:
+            if label.winfo_exists():
+                label.config(wraplength=int(event.width * share))
+                still_shown.append((label, share))
+        self.wrapping_labels = still_shown
+
+    def make_wrapping_label(self, parent, share, **options):
+        """A label whose text wraps at a share of the chat width."""
+        label = tk.Label(parent, justify="left", anchor="w", **options)
+        chat_width = max(self.chat.canvas.winfo_width(), 600)
+        label.config(wraplength=int(chat_width * share))
+        self.wrapping_labels.append((label, share))
+        return label
+
+    # ------------------------------------------------------------------
+    # My Kitchen (pantry editing)
     # The agent reads data/pantry.json when it builds the shopping list,
     # so edits made here are used by the next shopping list.
     # ------------------------------------------------------------------
 
     def refresh_pantry_list(self):
-        self.pantry_listbox.delete(0, "end")
-        for item in load_pantry():
-            self.pantry_listbox.insert("end", item)
+        for child in self.pantry_list.inner.winfo_children():
+            child.destroy()
 
-    def selected_pantry_index(self):
-        selection = self.pantry_listbox.curselection()
-        if not selection:
-            return None
-        return selection[0]
+        items = load_pantry()
+        if len(items) == 1:
+            self.pantry_count.config(text="1 ITEM")
+        else:
+            self.pantry_count.config(text=f"{len(items)} ITEMS")
 
-    def on_pantry_select(self, _event=None):
-        index = self.selected_pantry_index()
-        if index is None:
+        if not items:
+            tk.Label(self.pantry_list.inner,
+                     text="Nothing here yet.\nAdd what's in your fridge\nand cupboards below.",
+                     font=SMALL_FONT, fg=TEXT_MUTED, bg=BG_CARD, justify="center").pack(pady=30)
             return
-        self.pantry_entry.delete(0, "end")
-        self.pantry_entry.insert(0, self.pantry_listbox.get(index))
+
+        for index, item in enumerate(items):
+            self.make_pantry_row(index, item)
+
+    def make_pantry_row(self, index, item):
+        row = tk.Frame(self.pantry_list.inner, bg=BG_SOFT, padx=10, pady=6)
+        row.pack(fill="x", pady=2, padx=(0, 6))
+
+        name = tk.Label(row, text=item, font=BODY_FONT, fg=TEXT_MAIN, bg=BG_SOFT, anchor="w")
+        name.pack(side="left", fill="x", expand=True)
+
+        remove = tk.Label(row, text="✕", font=SMALL_BOLD_FONT, fg=TEXT_MUTED, bg=BG_SOFT,
+                          cursor="hand2", padx=4)
+        remove.pack(side="right")
+        remove.bind("<Button-1>", lambda _event: self.remove_pantry_item(index))
+
+        rename = tk.Label(row, text="✎", font=SMALL_FONT, fg=TEXT_MUTED, bg=BG_SOFT,
+                          cursor="hand2", padx=4)
+        rename.pack(side="right")
+        rename.bind("<Button-1>", lambda _event: self.start_editing_pantry_item(index, item))
+
+        # Clicking the name also starts renaming; the row lights up under the mouse.
+        name.bind("<Button-1>", lambda _event: self.start_editing_pantry_item(index, item))
+        for widget in (row, name, remove, rename):
+            widget.bind("<Enter>", lambda _event: self.color_row(row, GREEN_LIGHT), add="+")
+            widget.bind("<Leave>", lambda _event: self.color_row(row, BG_SOFT), add="+")
+
+    def color_row(self, row, color):
+        row.config(bg=color)
+        for child in row.winfo_children():
+            child.config(bg=color)
+
+    def show_pantry_status(self, text, is_problem=False):
+        if is_problem:
+            self.pantry_status.config(text=text, fg=TERRACOTTA)
+        else:
+            self.pantry_status.config(text=text, fg=GREEN_DARK)
+
+    def start_editing_pantry_item(self, index, item):
+        self.editing_index = index
+        self.pantry_entry.set_text(item)
+        self.pantry_entry.focus_set()
+        self.pantry_save_button.config(text="✓ Save")
+        self.pantry_cancel_button.pack(side="left", padx=(6, 0))
+        self.show_pantry_status(f"Renaming '{item}'")
+
+    def stop_editing_pantry_item(self):
+        self.editing_index = None
+        self.pantry_entry.clear()
+        self.pantry_save_button.config(text="＋ Add")
+        self.pantry_cancel_button.pack_forget()
+        self.show_pantry_status("")
+
+    def save_pantry_entry(self):
+        if self.editing_index is None:
+            self.add_pantry_item()
+        else:
+            self.rename_pantry_item()
 
     def save_pantry_items(self, items, status_text):
         try:
             save_pantry(items)
         except Exception as error:
-            self.pantry_status.config(text=f"Could not save: {error}")
+            self.show_pantry_status(f"Sorry, I couldn't save that: {error}", is_problem=True)
             return
+        self.stop_editing_pantry_item()
         self.refresh_pantry_list()
-        self.pantry_entry.delete(0, "end")
-        self.pantry_status.config(text=status_text)
+        self.show_pantry_status(status_text)
+
+    def is_in_pantry(self, items, name):
+        for item in items:
+            if item.lower() == name.lower():
+                return True
+        return False
 
     def add_pantry_item(self):
-        new_item = self.pantry_entry.get().strip()
+        new_item = self.pantry_entry.get_text()
         if not new_item:
-            self.pantry_status.config(text="Type an item name first.")
+            self.show_pantry_status("Type what you have first, e.g. eggs.", is_problem=True)
             return
         items = load_pantry()
-        if new_item in items:
-            self.pantry_status.config(text=f"'{new_item}' is already in the pantry.")
+        if self.is_in_pantry(items, new_item):
+            self.show_pantry_status(f"You already have {new_item} listed.", is_problem=True)
             return
         items.append(new_item)
-        self.save_pantry_items(items, f"Added '{new_item}'.")
+        self.save_pantry_items(items, f"✓ Added {new_item}")
+        self.pantry_list.scroll_to_bottom()
 
-    def update_pantry_item(self):
-        index = self.selected_pantry_index()
-        new_name = self.pantry_entry.get().strip()
-        if index is None or not new_name:
-            self.pantry_status.config(text="Select an item and type its new name.")
+    def rename_pantry_item(self):
+        new_name = self.pantry_entry.get_text()
+        if not new_name:
+            self.show_pantry_status("Type the new name first.", is_problem=True)
             return
         items = load_pantry()
-        old_name = items[index]
-        items[index] = new_name
-        self.save_pantry_items(items, f"Renamed '{old_name}' to '{new_name}'.")
-
-    def remove_pantry_item(self):
-        index = self.selected_pantry_index()
-        if index is None:
-            self.pantry_status.config(text="Select an item to remove.")
+        if self.editing_index >= len(items):
+            self.stop_editing_pantry_item()
             return
+        old_name = items[self.editing_index]
+        items[self.editing_index] = new_name
+        self.save_pantry_items(items, f"✓ Changed {old_name} to {new_name}")
+
+    def remove_pantry_item(self, index):
         items = load_pantry()
+        if index >= len(items):
+            return
         removed = items.pop(index)
-        self.save_pantry_items(items, f"Removed '{removed}'.")
+        self.save_pantry_items(items, f"✓ Removed {removed}")
 
     # ------------------------------------------------------------------
     # Chat display
     # ------------------------------------------------------------------
 
-    def add_message(self, sender, text, widget=None):
-        """Add a message to the chat. widget, if given, is shown below the text."""
-        emoji, name, _ = SPEAKERS[sender]
-        # Keep the thinking animation as the last line of the chat.
-        was_animating = self.animation_running
-        if was_animating:
-            self.stop_thinking_animation()
+    def add_chat_row(self, row, pady=6):
+        """Show a row in the chat, keeping the thinking bubble as the last row."""
+        if self.thinking_row is not None:
+            row.pack(fill="x", pady=pady, before=self.thinking_row)
+        else:
+            row.pack(fill="x", pady=pady)
+        self.chat.scroll_to_bottom()
 
-        self.chat_box.config(state="normal")
-        self.chat_box.insert("end", f"{emoji}  {name}\n", f"{sender}_name")
-        self.chat_box.insert("end", f"{text}\n", f"{sender}_text")
-        if widget is not None:
-            self.chat_box.window_create("end", window=widget, padx=28)
-            self.chat_box.insert("end", "\n\n")
-        self.chat_box.see("end")
-        self.chat_box.config(state="disabled")
+    def make_bubble_row(self, sender, text):
+        """A chat bubble: the user's on the right in green, the assistant's on the left."""
+        row = tk.Frame(self.chat.inner, bg=BG_CARD)
+        if sender == "user":
+            bubble = self.make_wrapping_label(
+                row, BUBBLE_WIDTH_SHARE, text=text, font=BODY_FONT,
+                bg=USER_BUBBLE_BG, fg=USER_BUBBLE_FG, padx=16, pady=10,
+            )
+            bubble.pack(side="right", padx=(80, 8))
+        else:
+            avatar = tk.Label(row, text=ASSISTANT_AVATAR, font=EMOJI_FONT, bg=BG_CARD)
+            avatar.pack(side="left", anchor="n", padx=(4, 8))
+            bubble = self.make_wrapping_label(
+                row, BUBBLE_WIDTH_SHARE, text=text, font=BODY_FONT,
+                bg=ASSISTANT_BUBBLE_BG, fg=ASSISTANT_BUBBLE_FG, padx=16, pady=10,
+            )
+            bubble.pack(side="left", padx=(0, 80))
+        return row, bubble
 
-        if was_animating:
-            self.start_thinking_animation(self.animation_label)
+    def add_message(self, sender, text, widget_builder=None):
+        """Add a chat bubble. widget_builder, if given, builds a card shown below it."""
+        row, _ = self.make_bubble_row(sender, text)
+        self.add_chat_row(row)
+        if widget_builder is not None:
+            card_row = tk.Frame(self.chat.inner, bg=BG_CARD)
+            widget_builder(card_row).pack(fill="x", padx=(52, 24))
+            self.add_chat_row(card_row, pady=(0, 10))
+
+    def add_note(self, text):
+        """A small grey line in the middle of the chat, for quiet updates."""
+        row = tk.Frame(self.chat.inner, bg=BG_CARD)
+        tk.Label(row, text=text, font=SMALL_FONT, fg=TEXT_MUTED, bg=BG_CARD).pack()
+        self.add_chat_row(row, pady=12)
 
     def start_thinking_animation(self, label="Thinking"):
-        self.animation_label = label
+        self.animation_label = THINKING_LABELS.get(label, label)
         if self.animation_running:
             return
         self.animation_running = True
-        self.chat_box.config(state="normal")
-        # Remember where the animation line starts so we can redraw or delete it.
-        self.chat_box.mark_set("thinking_start", "end-1c")
-        self.chat_box.mark_gravity("thinking_start", "left")
-        self.chat_box.config(state="disabled")
+        row, bubble = self.make_bubble_row("assistant", "")
+        bubble.config(fg=TEXT_MUTED, font=(BODY_FONT[0], BODY_FONT[1], "italic"))
+        self.add_chat_row(row)
+        self.thinking_row = row
+        self.thinking_text = bubble
         self.animate()
 
     def stop_thinking_animation(self):
@@ -384,52 +656,76 @@ class GroceryAgentChatGUI:
         if self.animation_timer is not None:
             self.root.after_cancel(self.animation_timer)
             self.animation_timer = None
-        self.chat_box.config(state="normal")
-        self.chat_box.delete("thinking_start", "end-1c")
-        self.chat_box.config(state="disabled")
+        self.thinking_row.destroy()
+        self.thinking_row = None
+        self.thinking_text = None
 
     def animate(self):
         if not self.animation_running:
             return
-        food = THINKING_FRAMES[(self.animation_step // 2) % len(THINKING_FRAMES)]
+        food = THINKING_FRAMES[(self.animation_step // 3) % len(THINKING_FRAMES)]
         dots = THINKING_DOTS[self.animation_step % len(THINKING_DOTS)]
-        self.chat_box.config(state="normal")
-        self.chat_box.delete("thinking_start", "end-1c")
-        self.chat_box.insert("thinking_start", f"{food}  {self.animation_label}{dots}\n", "thinking")
-        self.chat_box.see("end")
-        self.chat_box.config(state="disabled")
+        self.thinking_text.config(text=f"{food}  {self.animation_label}{dots}")
         self.animation_step += 1
         self.animation_timer = self.root.after(ANIMATION_DELAY_MS, self.animate)
 
+    def show_suggestions(self, suggestions):
+        """Replace the tap-to-answer buttons. suggestions: list of (text, command)."""
+        for child in self.suggestion_bar.winfo_children():
+            child.destroy()
+        for text, command in suggestions:
+            chip = PillButton(
+                self.suggestion_bar, text, command,
+                bg="#FFFFFF", fg=GREEN_DARK, hover_bg=GREEN_LIGHT,
+                font=SMALL_BOLD_FONT, padx=14, pady=6, border=BORDER,
+            )
+            chip.pack(side="left", padx=(0, 8))
+
+    def suggestions_for_now(self):
+        if not self.session_running:
+            return [("🍽️  Plan more meals", self.start_session)]
+        if not self.waiting_for_user:
+            return []
+        if self.replies_this_session == 0:
+            choices = DAY_SUGGESTIONS
+        else:
+            choices = PREFERENCE_SUGGESTIONS
+
+        suggestions = []
+        for text, message in choices:
+            # message=message keeps each button's own message (not the loop's last one).
+            suggestions.append((text, lambda message=message: self.send_text(message)))
+        return suggestions
+
     def update_controls(self):
-        """Enable the input only while the agent is waiting for the user."""
+        """Enable typing only while the agent is waiting for the user."""
         if self.waiting_for_user:
-            self.send_button.config(state="normal")
             self.user_input.config(state="normal")
+            self.user_input.set_placeholder("Type your answer here...")
+            self.send_button.set_enabled(True)
             self.user_input.focus_set()
         else:
-            self.send_button.config(state="disabled")
+            self.user_input.set_placeholder("One moment please...")
             self.user_input.config(state="disabled")
+            self.send_button.set_enabled(False)
 
-        if self.session_running:
-            self.new_plan_button.config(state="disabled")
-        else:
-            self.new_plan_button.config(state="normal")
+        self.new_plan_button.set_enabled(not self.session_running)
+        self.show_suggestions(self.suggestions_for_now())
 
     # ------------------------------------------------------------------
     # Talking to the user (called by the UI thread)
     # ------------------------------------------------------------------
 
     def send_message(self):
-        if not self.waiting_for_user:
-            return
-        text = self.user_input.get().strip()
-        if not text:
-            return
+        self.send_text(self.user_input.get_text())
 
+    def send_text(self, text):
+        if not self.waiting_for_user or not text:
+            return
         self.add_message("user", text)
-        self.user_input.delete(0, "end")
+        self.user_input.clear()
         self.waiting_for_user = False
+        self.replies_this_session += 1
         self.update_controls()
         self.start_thinking_animation("Thinking")
         self.user_replies.put(text)
@@ -463,96 +759,175 @@ class GroceryAgentChatGUI:
         elif event_name == "shopping_list":
             self.show_shopping_list(data)
         elif event_name == "error":
-            self.add_message("status", data)
+            self.stop_thinking_animation()
+            self.add_message("assistant", "Oh dear, something went wrong on my side. "
+                                          "Please try starting a new meal plan.")
+            self.add_note(data)
         elif event_name == "session_done":
             self.stop_thinking_animation()
             self.session_running = False
             self.waiting_for_user = False
             self.update_controls()
-            self.add_message("status", "Session finished. Press 'New plan' to start again.")
+            self.add_note("Whenever you're ready, tap 'Plan more meals' to start again.")
 
     def show_agent_output(self, text):
         if text.startswith(ANSWER_PREFIX):
-            answer = text[len(ANSWER_PREFIX):].strip()
-            plan_start = PLAN_START.search(answer)
-            if plan_start is None:
-                self.add_message("assistant", answer)
-                return
-            # Hide the JSON. If the plan is valid it is shown as a table once the
-            # agent accepts it; if not, the agent's rejection message explains why.
-            text_before_plan = answer[:plan_start.start()].strip()
-            message = "📝 I drafted a meal plan."
-            if text_before_plan:
-                message = f"{text_before_plan}\n{message}"
-            self.add_message("assistant", message)
-        elif text.startswith(STATUS_PREFIXES):
-            self.add_message("status", text)
+            self.show_model_answer(text[len(ANSWER_PREFIX):].strip())
+        elif text.startswith(PLAN_REJECTED_PREFIX):
+            # The agent is fixing its own plan; the user only needs to know we're busy.
+            logger.info(text)
+            self.start_thinking_animation("Tidying up the plan")
+        elif text.startswith(PLAN_ACCEPTED_PREFIX):
+            # The plan cards follow straight after, so no message is needed.
+            logger.info(text)
+        elif text.startswith(PLAN_FAILED_PREFIX):
+            logger.warning(text)
+            self.add_message("assistant", "Sorry, I got a little muddled putting that plan together. "
+                                          "Could you tell me again, maybe in a different way?")
+        elif text.startswith(MODEL_MISSING_PREFIX):
+            self.add_message("assistant", "I can't come up with meals right now - the meal planner "
+                                          "isn't set up on this computer yet.")
         else:
             self.add_message("assistant", text)
 
+    def show_model_answer(self, answer):
+        plan_start = PLAN_START.search(answer)
+        if plan_start is None:
+            self.add_message("assistant", answer)
+            return
+        # Hide the JSON. If the plan is valid it is shown as cards once the agent
+        # accepts it; if not, the agent quietly asks the model to fix it.
+        text_before_plan = answer[:plan_start.start()].strip()
+        if text_before_plan:
+            self.add_message("assistant", text_before_plan)
+        self.start_thinking_animation("Putting your plan together")
+
+    # ------------------------------------------------------------------
+    # Meal plan cards
+    # ------------------------------------------------------------------
+
     def show_meal_plan(self, meal_plan, to_buy_per_meal):
-        table = self.build_meal_table(meal_plan, to_buy_per_meal)
-        self.add_message("assistant", "🍽️ Here is your meal plan:", widget=table)
+        def build(parent):
+            return self.build_meal_plan_cards(parent, meal_plan, to_buy_per_meal)
+        self.add_message("assistant", "Here's your meal plan! 🍽️", widget_builder=build)
 
-    def build_meal_table(self, meal_plan, to_buy_per_meal):
-        """A grid of labels, one row per meal. The thin gaps between cells form the grid lines."""
-        table = tk.Frame(self.chat_box, bg=BORDER)
+    def group_meals_by_day(self, meal_plan, to_buy_per_meal):
+        """[(day, [(meal, to_buy), ...]), ...] in the order the days appear."""
+        days = []
+        meals_for_day = {}
+        for meal, to_buy in zip(meal_plan, to_buy_per_meal):
+            day = str(meal.get("day", "")) or "Your meals"
+            if day not in meals_for_day:
+                meals_for_day[day] = []
+                days.append(day)
+            meals_for_day[day].append((meal, to_buy))
 
-        for column, (title, width) in enumerate(TABLE_COLUMNS):
-            # Fixed column widths so every row lines up; the 16 covers the cell padding.
-            table.grid_columnconfigure(column, minsize=width + 16)
-            self.make_table_cell(table, title, width, TABLE_HEADER_BG, bold=True).grid(
-                row=0, column=column, sticky="nsew", padx=(0, 1), pady=(0, 1)
-            )
+        grouped = []
+        for day in days:
+            grouped.append((day, meals_for_day[day]))
+        return grouped
 
-        for index, meal in enumerate(meal_plan):
-            row_bg = TABLE_ROW_BGS[index % len(TABLE_ROW_BGS)]
-            to_buy = to_buy_per_meal[index]
-            if to_buy:
-                to_buy_text = "\n".join(f"• {item}" for item in to_buy)
-                to_buy_color = TEXT_MAIN
-            else:
-                to_buy_text = "✓ All in pantry"
-                to_buy_color = ASSISTANT_COLOR
+    def build_meal_plan_cards(self, parent, meal_plan, to_buy_per_meal):
+        cards = tk.Frame(parent, bg=BG_CARD)
+        for day, meals in self.group_meals_by_day(meal_plan, to_buy_per_meal):
+            day_card = tk.Frame(cards, bg="#FFFFFF", highlightbackground=BORDER,
+                                highlightthickness=1, padx=18, pady=14)
+            day_card.pack(fill="x", pady=6)
+            tk.Label(day_card, text=f"📅  {day}", font=DAY_FONT, fg=GREEN_DARK,
+                     bg="#FFFFFF").pack(anchor="w", pady=(0, 4))
+            for meal, to_buy in meals:
+                self.add_meal_row(day_card, meal, to_buy)
+        return cards
 
-            cells = [
-                (meal.get("day", ""), TEXT_MAIN),
-                (str(meal.get("meal_type", "")).capitalize(), TEXT_MAIN),
-                (meal.get("meal_name", ""), TEXT_MAIN),
-                (", ".join(meal.get("ingredients", [])), TEXT_MUTED),
-                (to_buy_text, to_buy_color),
-            ]
-            for column, (text, color) in enumerate(cells):
-                width = TABLE_COLUMNS[column][1]
-                cell = self.make_table_cell(table, text, width, row_bg, color=color)
-                cell.grid(row=index + 1, column=column, sticky="nsew", padx=(0, 1), pady=(0, 1))
+    def add_meal_row(self, day_card, meal, to_buy):
+        meal_type = str(meal.get("meal_type", "")).strip()
+        icon = MEAL_ICONS.get(meal_type.lower(), "🍽️")
 
-        return table
+        row = tk.Frame(day_card, bg="#FFFFFF")
+        row.pack(fill="x", pady=(10, 0))
+        tk.Label(row, text=icon, font=EMOJI_FONT, bg="#FFFFFF").pack(side="left", anchor="n", padx=(0, 12))
 
-    def make_table_cell(self, parent, text, width, bg, color=TEXT_MAIN, bold=False):
-        weight = "bold" if bold else "normal"
-        return tk.Label(
-            parent,
-            text=text,
-            bg=bg,
-            fg=color,
-            font=("Arial", 11, weight),
-            wraplength=width,
-            width=0,
-            justify="left",
-            anchor="nw",
-            padx=8,
-            pady=6,
-        )
+        details = tk.Frame(row, bg="#FFFFFF")
+        details.pack(side="left", fill="x", expand=True)
+
+        if meal_type:
+            tk.Label(details, text=meal_type.upper(), font=SMALL_BOLD_FONT, fg=TEXT_MUTED,
+                     bg="#FFFFFF").pack(anchor="w")
+        self.make_wrapping_label(details, CARD_TEXT_WIDTH_SHARE, text=meal.get("meal_name", ""),
+                                 font=BODY_BOLD_FONT, fg=TEXT_MAIN, bg="#FFFFFF").pack(anchor="w")
+
+        ingredients = ", ".join(meal.get("ingredients", []))
+        if ingredients:
+            self.make_wrapping_label(details, CARD_TEXT_WIDTH_SHARE, text=ingredients,
+                                     font=SMALL_FONT, fg=TEXT_MUTED, bg="#FFFFFF").pack(anchor="w", pady=(2, 0))
+
+        if to_buy:
+            to_buy_text = "🛒  To buy: " + ", ".join(to_buy)
+            to_buy_color = TERRACOTTA
+        else:
+            to_buy_text = "✓  You have everything for this one"
+            to_buy_color = GREEN
+        self.make_wrapping_label(details, CARD_TEXT_WIDTH_SHARE, text=to_buy_text,
+                                 font=SMALL_BOLD_FONT, fg=to_buy_color, bg="#FFFFFF").pack(anchor="w", pady=(4, 0))
+
+    # ------------------------------------------------------------------
+    # Shopping list (tick items off while shopping)
+    # ------------------------------------------------------------------
 
     def show_shopping_list(self, shopping_list):
         if not shopping_list:
-            self.add_message("assistant", "🧾 Everything you need is already in your pantry.")
+            self.add_message("assistant", "Good news - you already have everything you need! 🎉 "
+                                          "No shopping trip this time.")
             return
-        lines = ["🧾 The shopping list is:"]
+
+        def build(parent):
+            return self.build_shopping_list_card(parent, shopping_list)
+        self.add_message("assistant", "And here's your shopping list. Tap an item to tick it off. 🧾",
+                         widget_builder=build)
+
+    def build_shopping_list_card(self, parent, shopping_list):
+        card = tk.Frame(parent, bg="#FFFFFF", highlightbackground=BORDER,
+                        highlightthickness=1, padx=18, pady=14)
+
+        header = tk.Frame(card, bg="#FFFFFF")
+        header.pack(fill="x", pady=(0, 6))
+        tk.Label(header, text=f"🛒  Shopping list · {len(shopping_list)} items", font=DAY_FONT,
+                 fg=TERRACOTTA, bg="#FFFFFF").pack(side="left")
+
+        copy_button = PillButton(header, "Copy list", lambda: None,
+                                 bg=BG_SOFT, fg=TEXT_MAIN, hover_bg=BORDER,
+                                 font=SMALL_BOLD_FONT, padx=12, pady=5)
+        copy_button.command = lambda: self.copy_shopping_list(shopping_list, copy_button)
+        copy_button.pack(side="right")
+
         for item in shopping_list:
-            lines.append(f"  - {item}")
-        self.add_message("assistant", "\n".join(lines))
+            self.add_shopping_item(card, item)
+        return card
+
+    def add_shopping_item(self, card, item):
+        label = tk.Label(card, text=f"☐   {item}", font=BODY_FONT, fg=TEXT_MAIN,
+                         bg="#FFFFFF", anchor="w", cursor="hand2", pady=3)
+        label.pack(fill="x")
+        label.ticked = False
+
+        def toggle(_event=None):
+            label.ticked = not label.ticked
+            if label.ticked:
+                label.config(text=f"☑   {item}", fg=TEXT_MUTED,
+                             font=(BODY_FONT[0], BODY_FONT[1], "overstrike"))
+            else:
+                label.config(text=f"☐   {item}", fg=TEXT_MAIN, font=BODY_FONT)
+
+        label.bind("<Button-1>", toggle)
+
+    def copy_shopping_list(self, shopping_list, button):
+        lines = []
+        for item in shopping_list:
+            lines.append(f"- {item}")
+        self.root.clipboard_clear()
+        self.root.clipboard_append("Shopping list\n" + "\n".join(lines))
+        button.config(text="Copied ✓")
+        self.root.after(2000, lambda: button.winfo_exists() and button.config(text="Copy list"))
 
     # ------------------------------------------------------------------
     # Running the agent (worker thread)
@@ -562,8 +937,11 @@ class GroceryAgentChatGUI:
     def start_session(self):
         if self.session_running:
             return
+        if self.chat.inner.winfo_children():
+            self.add_note("─────────   New meal plan   ─────────")
         self.session_running = True
         self.waiting_for_user = False
+        self.replies_this_session = 0
         self.user_replies = queue.Queue()
         self.update_controls()
         self.start_thinking_animation("Starting")
@@ -575,11 +953,11 @@ class GroceryAgentChatGUI:
         return self.user_replies.get()
 
     def agent_output(self, text):
-        """output_fn for the agent: show its message in the chat box."""
+        """output_fn for the agent: show its message in the chat."""
         self.events.put(("agent_output", text))
 
     def run_agent_session(self):
-        """Same steps as main.py, with the chat box instead of the terminal."""
+        """Same steps as main.py, with the chat window instead of the terminal."""
         try:
             if self.agent is None:
                 self.events.put(("status", "Loading model"))
@@ -608,7 +986,7 @@ class GroceryAgentChatGUI:
                 shopping_list = self.agent.generate_shopping_list(meal_plan, pantry_list)
                 self.events.put(("shopping_list", shopping_list))
         except Exception as error:
-            self.events.put(("error", f"Something went wrong: {error}"))
+            self.events.put(("error", f"Details: {error}"))
         finally:
             self.events.put(("session_done", None))
 
