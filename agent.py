@@ -108,21 +108,48 @@ class Agent:
             return []
     
         
+    def _pantry_instruction(self, pantry_list: List[str]) -> str:
+        """The system-prompt rule that tells the model what is already in the pantry."""
+        pantry_items = []
+        for item in pantry_list:
+            if isinstance(item, str) and item.strip():
+                pantry_items.append(item.strip())
+
+        if not pantry_items:
+            return "5. The user's pantry is empty, so every ingredient will need to be bought."
+
+        return (
+            f"5. The user's pantry already has: {', '.join(pantry_items)}.\n"
+            "        Where they fit what the user asked for, build meals include these items so less needs "
+            "to be bought.\n"
+            "        You do not need to use every item, and never break the user's wishes or dietary "
+            "needs to use one.\n"
+            "        Buying ingredients is expected. Each meal must list every ingredient the dish needs, "
+            "including ones that are not in the pantry, and the ingredients must match the meal name "
+            "(for example, Lentil Soup needs lentils). Never leave out an ingredient because it is not "
+            "in the pantry."
+        )
+
     def generate_meal_plan(self, input_fn: Optional[Callable[[str], str]] = None,
-                           output_fn: Optional[Callable[[str], None]] = None) -> Optional[MealPlan]:
+                           output_fn: Optional[Callable[[str], None]] = None,
+                           pantry_list: Optional[List[str]] = None) -> Optional[MealPlan]:
         """Generate the meal plan over the next X days.
 
         input_fn / output_fn default to the terminal (input / print); the eval
         harness passes scripted versions so a conversation can run without stdin.
+        The pantry is shown to the model so it can plan meals that use it.
+        If pantry_list is None, the pantry is read from disk.
         """
         input_fn = input_fn or input
         output_fn = output_fn or print
-        
+        if pantry_list is None:
+            pantry_list = self.search_pantry()
+
         system_prompt = """Your role is to assist the user with meal planning.
 
         CRITICAL INSTRUCTIONS:
         1. The first question is always about the number of days for meal planning.
-        2. You need to understand the user's needs.
+        2. You need to understand the user's preferences and dietary restrictions.
         3. After each question, your next response is either a follow-up question or the meal plan.
         4. The meal plan response must be in JSON format only. It must follow this schema:
     '''
@@ -131,7 +158,7 @@ class Agent:
       {"day": "Day 1", "meal_type": "lunch", "meal_name": "...", "ingredients": ["...", "..."]}
     ]
     '''
-        """
+        """ + self._pantry_instruction(pantry_list) + "\n"
 
         output_fn("Hi I am your meal planning assistant. How many days do you want to prepare for meals?")
         meal_plan = None

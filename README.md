@@ -3,7 +3,7 @@
 A local AI agent that chats with you to build a multi-day meal plan, then turns it into a shopping list
 that skips what's already in your pantry. It runs Llama 3 8B on-device with [MLX](https://github.com/ml-explore/mlx).
 
-> 📚 Educational project: a learning exercise in building, testing and evaluating an LLM agent.
+> 📚 Personal project in building, testing and evaluating an LLM agent.
 
 ## Setup
 
@@ -65,9 +65,15 @@ plans it agreed with the human verdict 35 times (Llama 3 8B: 29), but it takes ~
 Each eval case runs several times and is scored with rule checks: day count, meal types,
 forbidden ingredients, and pantry items leaking into the shopping list. Shopping items that might be pantry
 items (e.g. `brown rice` vs pantry `rice`) don't fail the run; they're listed under `possible_pantry_items`
-for review. Words that never change an item are in `SAME_ITEM_QUALIFIERS` in `eval.py`. The LLM judge additionally
+for review. Words that never change an item are in `SAME_ITEM_QUALIFIERS` in `ingredient_match.py`. The LLM judge additionally
 grades diet compliance (including implied ingredients), whether the plan matches the request, and whether
 the meals make sense. Results are saved to `eval_results.json`.
+
+The judge prompt (`JUDGE_SYSTEM` in `eval.py`) follows the
+[Hugging Face LLM-as-a-judge guide](https://huggingface.co/learn/cookbook/llm_judge):
+- It uses a small 1–5 score with a description for every level, not a wide or unexplained scale.
+- The judge lists `issues` before giving its verdict and score, so it looks for problems before it decides.
+- Its answer is JSON, which `parse_judge_reply` checks, and it runs at temperature 0 so repeated grading is stable.
 
 ### Latest results
 

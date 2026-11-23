@@ -283,3 +283,57 @@ def test_cut_off_plan_gets_json_feedback(agent):
 
 def test_reply_without_plan_is_a_follow_up(agent):
     assert agent._check_meal_plan("Any allergies? I can use [brackets] too.") == (None, None)
+
+
+# ============ PANTRY IN THE PROMPT ============
+
+def _system_prompt_sent_to_model(agent):
+    """The system message from the latest prompt the agent built.
+
+    The mock tokenizer is shared across tests, so use the most recent call.
+    """
+    latest_call = agent.tokenizer.apply_chat_template.call_args
+    messages = latest_call.args[0]
+    return messages[0]["content"]
+
+
+def test_meal_plan_prompt_lists_pantry_items(agent):
+    """The model is told what is in the pantry so it can plan meals around it."""
+    agent.tokenizer.apply_chat_template.return_value = "prompt"
+    agent.memory.add = MagicMock()
+
+    with patch("agent.generate", return_value="How many people?"):
+        agent.generate_meal_plan(input_fn=MagicMock(side_effect=["3 days", "exit"]),
+                                 output_fn=MagicMock(),
+                                 pantry_list=["whole chicken", "celery", "  "])
+
+    prompt = _system_prompt_sent_to_model(agent)
+    assert "whole chicken, celery" in prompt
+    assert "You do not need to use every item" in prompt
+    # Seen in an eval run: told to use the pantry, the model listed only pantry items
+    # (e.g. "Lentil Soup" with just salt), so the prompt must say buying is fine.
+    assert "Never leave out an ingredient because it is not in the pantry" in prompt
+
+
+def test_meal_plan_reads_pantry_from_disk_when_not_given(agent):
+    agent.tokenizer.apply_chat_template.return_value = "prompt"
+    agent.memory.add = MagicMock()
+
+    with patch("agent.list_items", return_value=["rice"]), \
+         patch("agent.generate", return_value="How many people?"):
+        agent.generate_meal_plan(input_fn=MagicMock(side_effect=["3 days", "exit"]),
+                                 output_fn=MagicMock())
+
+    assert "already has: rice." in _system_prompt_sent_to_model(agent)
+
+
+def test_meal_plan_prompt_with_empty_pantry(agent):
+    agent.tokenizer.apply_chat_template.return_value = "prompt"
+    agent.memory.add = MagicMock()
+
+    with patch("agent.generate", return_value="How many people?"):
+        agent.generate_meal_plan(input_fn=MagicMock(side_effect=["3 days", "exit"]),
+                                 output_fn=MagicMock(),
+                                 pantry_list=[])
+
+    assert "pantry is empty" in _system_prompt_sent_to_model(agent)

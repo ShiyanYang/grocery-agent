@@ -1,6 +1,6 @@
 # Production-Grade Code Review & Improvements
 
-_Last updated: 2026-11-16_
+_Last updated: 2026-11-23_
 
 ## ✅ Completed
 
@@ -25,7 +25,7 @@ _Last updated: 2026-11-16_
 16. ✅ **JSON schema validation** of meal plans (`MEAL_PLAN_SCHEMA` + `jsonschema`).
 17. ✅ **Self-repair loop**: invalid plans are sent back to the model with specific feedback, up to `MAX_REPAIR_ATTEMPTS` times.
 18. ✅ **Injectable I/O**: `generate_meal_plan(input_fn, output_fn)` lets tests, the eval and the GUI script the conversation.
-19. ✅ **Unit tests** (`test/`, pytest, 74 tests, all passing): the LLM is mocked, so no model is needed.
+19. ✅ **Unit tests** (`test/`, pytest, 77 tests, all passing): the LLM is mocked, so no model is needed.
 20. ✅ **Evaluation harness** (`eval.py`): scripted cases run several times each and are graded by rule checks and an LLM judge; results go to `eval_results.json` and the README.
 21. ✅ **Desktop chat GUI** (`chat_gui.py`, run via `run_gui.py`).
 22. ✅ **Test & Quality agent** definition for coding assistants (`.github/agents/test-quality.agent.md`).
@@ -51,6 +51,11 @@ _Last updated: 2026-11-16_
 36. ✅ **GUI usability**: editable pantry panel, the meal plan as a table with a per-meal "To buy" column, speaker icons, and a processing animation instead of the spinning wheel.
 37. ✅ **Friendlier GUI redesign**: a warm kitchen theme with chat bubbles, tap-to-answer suggestions, the meal plan as day cards, a tick-off shopping list, and the agent's internal status messages hidden or turned into plain words.
 
+### Round 6: judge prompt
+38. ✅ **Judge prompt follows the [Hugging Face LLM-as-a-judge guide](https://huggingface.co/learn/cookbook/llm_judge)**:
+    every score from 1 to 5 now has a description (before, only 1 and 5 did), and the judge writes `issues` before
+    its verdict and score, so it looks for problems before it decides. Not yet checked in a full eval run.
+
 ---
 
 ## 🔴 High priority
@@ -72,8 +77,13 @@ The agent now removes leaks like `chicken breasts` (item 30), but entries with u
 - **Judge passes plans while naming the problem**: Gemma marked gelatin cups (vegetarian) and granola
   ("no nuts") compliant but listed them in `issues`. Read `issues` on passing runs too.
 - **Judge is slow**: ~55 s per plan, adding ~14 minutes to a 15-run eval.
-- The 37 labeled plans were judged by one person (and only 1 real plan was bad). Save the labels to a
-  file (e.g. `eval_data/human_labels.jsonl`) with a script that reports grader agreement, and add more bad examples.
+- **Human check of the judge**: the 37 labeled plans were judged by one person, only 1 real plan was bad,
+  and the labels weren't saved, so the check can't be repeated. Following the Hugging Face guide:
+  - Save the labels to a file (e.g. `eval_data/human_labels.jsonl`). Each label gets the same 1–5 score and
+    yes/no fields as the judge.
+  - Cover every score level, including bad plans (the guide uses about 7 per level). Have a second person label them if possible.
+  - Add a script that reports agreement: correlation for the 1–5 score and percent agreement for each yes/no field.
+  - Rerun it after every judge prompt or model change, so changes like item 38 are measured rather than assumed.
 
 ### 4. File locking for pantry/memory
 Two processes writing `data/pantry.json` at once (e.g. `app.py` and the GUI, which now edits the pantry) can lose updates:
@@ -188,6 +198,7 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
    - [x] Leak-aware pantry matching in the agent
    - [x] Fresh `python eval.py` run, so `eval_results.json` matches the README table and includes judge scores
    - [ ] Catch ingredients bundled into one string (agent + eval)
+   - [ ] Fresh `python eval.py` run with the new judge prompt, then update the README results table
 2. **Short term**
    - [x] Stronger judge model; spot-check verdicts
    - [ ] Fix the "Crab-Free" meal-name false alarm

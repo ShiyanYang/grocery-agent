@@ -23,6 +23,7 @@ from datetime import datetime
 from tkinter import ttk
 
 from config import config
+from ingredient_match import pantry_match
 from pantry import load_pantry, save_pantry
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ TEXT_MUTED = "#8C8478"
 GREEN = "#5E8C5B"           # main accent (sage green)
 GREEN_DARK = "#4B7349"
 GREEN_LIGHT = "#E8F0E4"
+USED_HOVER_BG = "#D9E7D3"   # hover color for pantry items the plan uses
 TERRACOTTA = "#C2654A"      # things to buy
 DISABLED_BG = "#E9E3D8"
 DISABLED_FG = "#B3AA9C"
@@ -265,6 +267,21 @@ class ScrollableFrame(tk.Frame):
         self.canvas.yview_moveto(1.0)
 
 
+def pantry_items_used(ingredients, pantry_items):
+    """The pantry items that a meal's ingredients use, in pantry order.
+
+    Uses the same rule as the agent's shopping-list filter: only a clear match counts,
+    so 'chicken breasts' uses 'chicken breast', but 'brown rice' does not use 'rice'.
+    """
+    used = []
+    for pantry_item in pantry_items:
+        for ingredient in ingredients:
+            if isinstance(ingredient, str) and pantry_match(ingredient, pantry_item) == "leak":
+                used.append(pantry_item)
+                break
+    return used
+
+
 # ======================================================================
 # The main window
 # ======================================================================
@@ -300,6 +317,8 @@ class GroceryAgentChatGUI:
         self.wrapping_labels = []
         # Index of the pantry item being renamed, or None when adding.
         self.editing_index = None
+        # Lowercased names of the pantry items the current meal plan cooks with.
+        self.pantry_items_in_plan = set()
 
         self.build_ui()
         self.refresh_pantry_list()
@@ -464,8 +483,8 @@ class GroceryAgentChatGUI:
 
     # ------------------------------------------------------------------
     # My Kitchen (pantry editing)
-    # The agent reads data/pantry.json when it builds the shopping list,
-    # so edits made here are used by the next shopping list.
+    # The agent reads data/pantry.json when it starts a meal plan and when it
+    # builds the shopping list, so edits made here are used by the next plan.
     # ------------------------------------------------------------------
 
     def refresh_pantry_list(self):
@@ -474,9 +493,17 @@ class GroceryAgentChatGUI:
 
         items = load_pantry()
         if len(items) == 1:
-            self.pantry_count.config(text="1 ITEM")
+            count_text = "1 ITEM"
         else:
-            self.pantry_count.config(text=f"{len(items)} ITEMS")
+            count_text = f"{len(items)} ITEMS"
+
+        used_count = 0
+        for item in items:
+            if self.is_used_in_plan(item):
+                used_count += 1
+        if used_count:
+            count_text += f"  ·  🍳 {used_count} IN THIS PLAN"
+        self.pantry_count.config(text=count_text)
 
         if not items:
             tk.Label(self.pantry_list.inner,
@@ -487,19 +514,36 @@ class GroceryAgentChatGUI:
         for index, item in enumerate(items):
             self.make_pantry_row(index, item)
 
+    def is_used_in_plan(self, item):
+        return item.strip().lower() in self.pantry_items_in_plan
+
     def make_pantry_row(self, index, item):
-        row = tk.Frame(self.pantry_list.inner, bg=BG_SOFT, padx=10, pady=6)
+        # Items the current meal plan cooks with are shown in green with a pan icon.
+        if self.is_used_in_plan(item):
+            row_color = GREEN_LIGHT
+            hover_color = USED_HOVER_BG
+            name_text = f"🍳  {item}"
+            name_font = BODY_BOLD_FONT
+            name_color = GREEN_DARK
+        else:
+            row_color = BG_SOFT
+            hover_color = GREEN_LIGHT
+            name_text = item
+            name_font = BODY_FONT
+            name_color = TEXT_MAIN
+
+        row = tk.Frame(self.pantry_list.inner, bg=row_color, padx=10, pady=6)
         row.pack(fill="x", pady=2, padx=(0, 6))
 
-        name = tk.Label(row, text=item, font=BODY_FONT, fg=TEXT_MAIN, bg=BG_SOFT, anchor="w")
+        name = tk.Label(row, text=name_text, font=name_font, fg=name_color, bg=row_color, anchor="w")
         name.pack(side="left", fill="x", expand=True)
 
-        remove = tk.Label(row, text="✕", font=SMALL_BOLD_FONT, fg=TEXT_MUTED, bg=BG_SOFT,
+        remove = tk.Label(row, text="✕", font=SMALL_BOLD_FONT, fg=TEXT_MUTED, bg=row_color,
                           cursor="hand2", padx=4)
         remove.pack(side="right")
         remove.bind("<Button-1>", lambda _event: self.remove_pantry_item(index))
 
-        rename = tk.Label(row, text="✎", font=SMALL_FONT, fg=TEXT_MUTED, bg=BG_SOFT,
+        rename = tk.Label(row, text="✎", font=SMALL_FONT, fg=TEXT_MUTED, bg=row_color,
                           cursor="hand2", padx=4)
         rename.pack(side="right")
         rename.bind("<Button-1>", lambda _event: self.start_editing_pantry_item(index, item))
@@ -507,8 +551,8 @@ class GroceryAgentChatGUI:
         # Clicking the name also starts renaming; the row lights up under the mouse.
         name.bind("<Button-1>", lambda _event: self.start_editing_pantry_item(index, item))
         for widget in (row, name, remove, rename):
-            widget.bind("<Enter>", lambda _event: self.color_row(row, GREEN_LIGHT), add="+")
-            widget.bind("<Leave>", lambda _event: self.color_row(row, BG_SOFT), add="+")
+            widget.bind("<Enter>", lambda _event: self.color_row(row, hover_color), add="+")
+            widget.bind("<Leave>", lambda _event: self.color_row(row, row_color), add="+")
 
     def color_row(self, row, color):
         row.config(bg=color)
@@ -754,8 +798,8 @@ class GroceryAgentChatGUI:
         elif event_name == "status":
             self.start_thinking_animation(data)
         elif event_name == "meal_plan":
-            meal_plan, to_buy_per_meal = data
-            self.show_meal_plan(meal_plan, to_buy_per_meal)
+            meal_plan, to_buy_per_meal, pantry_list = data
+            self.show_meal_plan(meal_plan, to_buy_per_meal, pantry_list)
         elif event_name == "shopping_list":
             self.show_shopping_list(data)
         elif event_name == "error":
@@ -806,9 +850,19 @@ class GroceryAgentChatGUI:
     # Meal plan cards
     # ------------------------------------------------------------------
 
-    def show_meal_plan(self, meal_plan, to_buy_per_meal):
+    def show_meal_plan(self, meal_plan, to_buy_per_meal, pantry_list):
+        # Which pantry items each meal cooks with, for the meal cards and "My Kitchen".
+        pantry_used_per_meal = []
+        self.pantry_items_in_plan = set()
+        for meal in meal_plan:
+            used = pantry_items_used(meal.get("ingredients", []), pantry_list or [])
+            pantry_used_per_meal.append(used)
+            for item in used:
+                self.pantry_items_in_plan.add(item.strip().lower())
+        self.refresh_pantry_list()
+
         def build(parent):
-            return self.build_meal_plan_cards(parent, meal_plan, to_buy_per_meal)
+            return self.build_meal_plan_cards(parent, meal_plan, to_buy_per_meal, pantry_used_per_meal)
         self.add_message("assistant", "Here's your meal plan! 🍽️", widget_builder=build)
 
     def group_meals_by_day(self, meal_plan, to_buy_per_meal):
@@ -827,19 +881,24 @@ class GroceryAgentChatGUI:
             grouped.append((day, meals_for_day[day]))
         return grouped
 
-    def build_meal_plan_cards(self, parent, meal_plan, to_buy_per_meal):
+    def build_meal_plan_cards(self, parent, meal_plan, to_buy_per_meal, pantry_used_per_meal):
+        # Each meal travels with its own "to buy" and "from your kitchen" lists.
+        extras_per_meal = []
+        for to_buy, pantry_used in zip(to_buy_per_meal, pantry_used_per_meal):
+            extras_per_meal.append((to_buy, pantry_used))
+
         cards = tk.Frame(parent, bg=BG_CARD)
-        for day, meals in self.group_meals_by_day(meal_plan, to_buy_per_meal):
+        for day, meals in self.group_meals_by_day(meal_plan, extras_per_meal):
             day_card = tk.Frame(cards, bg="#FFFFFF", highlightbackground=BORDER,
                                 highlightthickness=1, padx=18, pady=14)
             day_card.pack(fill="x", pady=6)
             tk.Label(day_card, text=f"📅  {day}", font=DAY_FONT, fg=GREEN_DARK,
                      bg="#FFFFFF").pack(anchor="w", pady=(0, 4))
-            for meal, to_buy in meals:
-                self.add_meal_row(day_card, meal, to_buy)
+            for meal, (to_buy, pantry_used) in meals:
+                self.add_meal_row(day_card, meal, to_buy, pantry_used)
         return cards
 
-    def add_meal_row(self, day_card, meal, to_buy):
+    def add_meal_row(self, day_card, meal, to_buy, pantry_used):
         meal_type = str(meal.get("meal_type", "")).strip()
         icon = MEAL_ICONS.get(meal_type.lower(), "🍽️")
 
@@ -860,6 +919,11 @@ class GroceryAgentChatGUI:
         if ingredients:
             self.make_wrapping_label(details, CARD_TEXT_WIDTH_SHARE, text=ingredients,
                                      font=SMALL_FONT, fg=TEXT_MUTED, bg="#FFFFFF").pack(anchor="w", pady=(2, 0))
+
+        if pantry_used:
+            self.make_wrapping_label(details, CARD_TEXT_WIDTH_SHARE,
+                                     text="🍳  From your kitchen: " + ", ".join(pantry_used),
+                                     font=SMALL_BOLD_FONT, fg=GREEN_DARK, bg="#FFFFFF").pack(anchor="w", pady=(4, 0))
 
         if to_buy:
             to_buy_text = "🛒  To buy: " + ", ".join(to_buy)
@@ -943,6 +1007,9 @@ class GroceryAgentChatGUI:
         self.waiting_for_user = False
         self.replies_this_session = 0
         self.user_replies = queue.Queue()
+        # The old plan's highlights no longer apply.
+        self.pantry_items_in_plan = set()
+        self.refresh_pantry_list()
         self.update_controls()
         self.start_thinking_animation("Starting")
         threading.Thread(target=self.run_agent_session, daemon=True).start()
@@ -980,7 +1047,7 @@ class GroceryAgentChatGUI:
                     to_buy_per_meal.append(
                         self.agent.generate_shopping_list([meal], pantry_list)
                     )
-                self.events.put(("meal_plan", (meal_plan, to_buy_per_meal)))
+                self.events.put(("meal_plan", (meal_plan, to_buy_per_meal, pantry_list)))
 
                 # The full list, as main.py prints it (duplicates across meals removed).
                 shopping_list = self.agent.generate_shopping_list(meal_plan, pantry_list)

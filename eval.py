@@ -5,7 +5,7 @@ eval.py - run the Agent against a golden dataset of scripted conversations and s
 Each case in the dataset (JSONL, one case per line) holds:
   id      - unique name
   turns   - the user messages fed to the agent, in order ("exit" is sent once they run out)
-  pantry  - pantry contents used for the shopping list
+  pantry  - pantry contents shown to the agent and used for the shopping list
   expect  - properties the meal plan / shopping list must satisfy (all optional):
               days                          number of distinct days in the plan
               meal_types                    exact set of meal types expected
@@ -212,15 +212,21 @@ def score_run(case: Dict[str, Any], meal_plan: Optional[List[Dict[str, Any]]],
 JUDGE_SYSTEM = """You are a strict evaluator of meal plans produced by a grocery assistant.
 You are given the user's messages and the meal plan. Judge ONLY the plan against what the user asked.
 
-Answer with a single JSON object and nothing else:
+Answer with a single JSON object and nothing else. Write "issues" first, so you look for
+problems before you decide the verdict and score:
 {
+  "issues": ["short description of each problem found"],
   "diet_compliant": true|false,   // every meal respects all stated restrictions and allergies,
                                   // including implied ingredients (e.g. pasta, bread, soy sauce
                                   // contain gluten; pesto usually contains nuts; gelatin is not vegetarian)
   "matches_request": true|false,  // days, meals per day, and preferences (e.g. "quick") are honoured
   "coherent": true|false,         // each meal is a real, sensible dish and its ingredients fit its name
-  "score": 1-5,                   // overall quality: 1 = unusable, 5 = excellent
-  "issues": ["short description of each problem found"]
+  "score": 1-5,                   // overall quality:
+                                  //   1 = unusable: breaks a restriction, or meals are not real dishes
+                                  //   2 = poor: major problems, e.g. most meals are missing key ingredients
+                                  //   3 = acceptable: usable, but with several noticeable issues
+                                  //   4 = good: only minor issues, e.g. one vague ingredient
+                                  //   5 = excellent: no issues found
 }"""
 
 JUDGE_FIELDS = ("diet_compliant", "matches_request", "coherent")
@@ -298,7 +304,8 @@ def _worker(model_path: str, case: Dict[str, Any], q: mp.Queue,
             return text
 
         t1 = time.time()
-        meal_plan = agent.generate_meal_plan(input_fn=scripted_input, output_fn=transcript.append)
+        meal_plan = agent.generate_meal_plan(input_fn=scripted_input, output_fn=transcript.append,
+                                             pantry_list=case["pantry"])
         meal_time = time.time() - t1
 
         t2 = time.time()
