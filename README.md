@@ -81,22 +81,32 @@ Agent: Llama 3 8B (MLX), temperature 0.7. Judge: Gemma 4 E4B. 5 cases × 3 runs 
 
 | Case | Rule checks passed | Failed rule check | Judge passed | Judge score (1–5) | For review | Avg meal-plan time |
 |---|:-:|---|:-:|:-:|---|--:|
-| `veg_3day_breakfast_dinner` | 3/3 | — | 2/3 | 4.33 | judge: granola may contain nuts | 54.0 s |
-| `two_day_all_meals` | 3/3 | — | 3/3 | 4.67 | — | 54.8 s |
-| `gluten_free_1day` | 3/3 | — | 3/3 | 4.67 | `sweet potatoes`, `cooked brown rice` | 33.7 s |
-| `dinner_only_4day_stocked_pantry` | 3/3¹ | — | 3/3 | 4.00 | — | 41.0 s |
-| `pescatarian_2day_lunch` | 2/3 | forbidden ingredient: `Crab-Free Quinoa Salad`² | 3/3 | 4.33 | — | 34.6 s |
-| **Overall** | **14/15 (93%)** | | **14/15 (93%)** | **4.40** | | |
+| `veg_3day_breakfast_dinner` | 3/3 | — | 3/3 | 4.67 | judge: `veggie broth` in breakfasts | 52.8 s |
+| `two_day_all_meals` | 3/3 | — | 3/3 | 4.67 | — | 61.4 s |
+| `gluten_free_1day` | 2/3 | forbidden ingredient: `Brown rice tortilla`¹ | 3/3 | 5.00 | `sweet potatoes` | 43.1 s |
+| `dinner_only_4day_stocked_pantry` | 3/3 | —² | 3/3 | 4.33 | — | 67.4 s |
+| `pescatarian_2day_lunch` | 3/3 | — | 3/3 | 5.00 | — | 42.6 s |
+| **Overall** | **14/15 (93%)** | | **15/15 (100%)** | **4.73** | | |
 
-Reading all 15 transcripts by hand, 12 runs are fine, 1 is borderline (granola in a "no nuts" plan) and 2 have a real problem:
-- ¹ **Missed by both graders:** in 2 dinner runs the model wrote each meal's ingredients as *one* comma-separated
-  string (`"pasta, canned tomatoes, olive oil, ..."`). The schema accepts it, the shopping list becomes 4 long
-  entries, and pantry items like `pasta` and `olive oil` aren't removed.
-- ² **False alarm:** the meal-name check matched "crab" in "Crab-Free". The plan is fine.
-- **Fixed since the last run:** no pantry leaks (`chicken breasts` is now removed) and every run produced a valid
-  plan. No plan needed a repair in this run, so the new nested-plan feedback wasn't exercised.
+What changed since the last run: the agent prompt now says every meal must list all its ingredients, including ones
+that must be bought, and the judge prompt describes every score level and asks for `issues` first. In the run
+before, told to build meals around the pantry, the model listed only pantry items (e.g. "Lentil Soup" with just
+`salt`); the rule checks passed 3/3 but the judge passed 0/3. Now every meal lists real ingredients.
+
+Reading all 15 plans by hand, 13 are fine and 2 are borderline. None has a real problem:
+- ¹ **False alarm:** `tortilla` is on the gluten-free list, but a brown rice tortilla is gluten-free. The plan is fine.
+- ² **Borderline, passed by both graders:** one dinner run still leans on the pantry: "Grilled Chicken with Roasted
+  Vegetables" lists only onion and garlic as vegetables, and the shopping list is just `tortillas`. The judge noted it
+  but still gave a 5.
+- **Borderline:** one vegetarian run puts `veggie broth` in avocado toast, scrambled tofu and an omelette.
+- **Judge doesn't always follow its rubric:** it gave a 5 (meaning "no issues") to 2 plans while listing an issue,
+  and sometimes writes praise in `issues`. A 15/15 judge pass rate can't be trusted until the judge is checked
+  against human labels (see PRODUCTION_IMPROVEMENTS.md).
+- **Shopping list duplicates:** `onion` and `onions` (and `veggie broth` and `vegetable broth`) can both appear,
+  because duplicates are only removed when the text is exactly the same.
+- **Not seen in this run:** ingredients bundled into one string. It isn't fixed, it just didn't happen.
 - **For review:** shopping items that might be pantry items (they don't fail the run), plus judge issues.
-- The judge took ~29 s per plan on top of the meal-plan time.
+- The judge took ~30 s per plan on top of the meal-plan time.
 
 ## Known limitations
 

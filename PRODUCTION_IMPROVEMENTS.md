@@ -54,7 +54,8 @@ _Last updated: 2026-11-23_
 ### Round 6: judge prompt
 38. ✅ **Judge prompt follows the [Hugging Face LLM-as-a-judge guide](https://huggingface.co/learn/cookbook/llm_judge)**:
     every score from 1 to 5 now has a description (before, only 1 and 5 did), and the judge writes `issues` before
-    its verdict and score, so it looks for problems before it decides. Not yet checked in a full eval run.
+    its verdict and score, so it looks for problems before it decides. In the next full run the judge still gave a 5
+    ("no issues") to 2 plans while listing an issue.
 
 ---
 
@@ -198,7 +199,7 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
    - [x] Leak-aware pantry matching in the agent
    - [x] Fresh `python eval.py` run, so `eval_results.json` matches the README table and includes judge scores
    - [ ] Catch ingredients bundled into one string (agent + eval)
-   - [ ] Fresh `python eval.py` run with the new judge prompt, then update the README results table
+   - [x] Fresh `python eval.py` run with the new judge prompt, then update the README results table
 2. **Short term**
    - [x] Stronger judge model; spot-check verdicts
    - [ ] Fix the "Crab-Free" meal-name false alarm
