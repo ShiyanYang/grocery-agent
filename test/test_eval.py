@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agent import Agent
-from eval import DEFAULT_CASES, judge_run, load_cases, parse_judge_reply, score_run
+from eval import DEFAULT_CASES, category_summary, judge_run, load_cases, parse_judge_reply, score_run
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -36,6 +36,22 @@ def test_golden_dataset_loads():
     assert len(cases) >= 5
     for case in cases:
         assert case["turns"], case["id"]
+
+
+def test_every_golden_case_has_a_known_category():
+    known = {"constraint", "implied_ingredient", "plan_shape", "coherence", "shopping_list", "conversation"}
+    for case in load_cases(str(ROOT / DEFAULT_CASES)):
+        assert case["categories"], case["id"]
+        assert set(case["categories"]) <= known, case["id"]
+
+
+def test_category_summary_counts_a_run_in_each_of_its_categories():
+    cases = [{"id": "a", "categories": ["constraint", "conversation"]},
+             {"id": "b", "categories": ["constraint"]}]
+    runs = [{"case": "a", "passed": False}, {"case": "a", "passed": True}, {"case": "b", "passed": True}]
+    summary = category_summary(cases, runs)
+    assert summary["constraint"] == {"cases": 2, "runs": 3, "pass_rate": 0.667}
+    assert summary["conversation"] == {"cases": 1, "runs": 2, "pass_rate": 0.5}
 
 
 def test_load_cases_rejects_duplicate_ids(tmp_path):
@@ -71,6 +87,18 @@ def test_score_detects_wrong_days_and_meal_types():
     checks = score_run(CASE, plan, [])["checks"]
     assert not checks["days"]
     assert not checks["meal_types"]
+
+
+def test_score_min_turns_used_catches_plan_made_too_early():
+    """A plan made before the late allergy turn was read must fail."""
+    case = {"id": "late", "turns": ["3 days", "dinner", "I'm allergic to peanuts", "plan please"],
+            "expect": {"min_turns_used": 3}}
+    assert score_run(case, GOOD_PLAN, [], turns_used=3)["checks"]["min_turns_used"]
+    assert score_run(case, GOOD_PLAN, [], turns_used=4)["checks"]["min_turns_used"]
+    result = score_run(case, GOOD_PLAN, [], turns_used=2)
+    assert not result["checks"]["min_turns_used"]
+    assert result["details"]["turns_used"] == 2
+    assert not score_run(case, GOOD_PLAN, [], turns_used=None)["checks"]["min_turns_used"]  # timed out
 
 
 def test_score_detects_pantry_leak():

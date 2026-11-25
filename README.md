@@ -44,7 +44,8 @@ config.py         # settings with env-var overrides
 main.py, app.py   # CLI entry points (meal planner, pantry manager)
 chat_gui.py       # Tkinter GUI for the meal planner (run via run_gui.py)
 eval.py           # evaluation harness
-eval_data/        # golden eval cases (JSONL)
+eval_data/        # golden eval cases (JSONL), each tagged with failure categories
+FAILURE_TAXONOMY.md  # failure categories the eval cases target, and grader errors
 test/             # unit tests (pytest)
 ```
 
@@ -56,6 +57,7 @@ pytest test/                      # unit tests (no model needed), with a live pr
 pytest test/ -v                   # same, listing each test by name
 python eval.py                    # run the agent on eval_data/meal_plan_cases.jsonl, graded by rules + LLM judge
 python eval.py --no-judge         # rule checks only (faster)
+python eval.py --category conversation   # only the cases tagged with one failure category
 ```
 
 The judge is Gemma 4 E4B (`models/gemma-4-e4b-it-4bit`, set by `JUDGE_MODEL_PATH`). Download it with

@@ -15,7 +15,12 @@ Each case in the dataset (JSONL, one case per line) holds:
               shopping_list_excludes_pantry no pantry item may appear in the shopping list
                                             (entries that only might be pantry items are listed
                                             under possible_pantry_items for review, see below)
+              min_turns_used                the agent must read at least this many user turns before making
+                                            the plan (catches a plan made before a late allergy or change of mind)
               judge_criteria                extra instructions for the LLM judge (only used when the LLM judge runs)
+  categories - failure categories the case targets (see FAILURE_TAXONOMY.md). The summary reports a
+               pass rate per category, and --category runs only the cases in a category.
+  note       - what correct behaviour looks like, for people reading the case; not used in scoring
 
 Each case is run --repeats times, each run in its own process with a timeout.
 
@@ -55,6 +60,7 @@ def load_cases(path: str) -> List[Dict[str, Any]]:
             for key in ("id", "turns"):
                 if key not in case:
                     raise ValueError(f"{path}:{lineno}: case missing '{key}'")
+            case.setdefault("categories", [])
             case.setdefault("pantry", [])
             case.setdefault("expect", {})
             cases.append(case)
@@ -161,7 +167,8 @@ def _check_pantry_excluded(shopping_list: Optional[List[str]], pantry: List[str]
 
 
 def score_run(case: Dict[str, Any], meal_plan: Optional[List[Dict[str, Any]]],
-              shopping_list: Optional[List[str]]) -> Dict[str, Any]:
+              shopping_list: Optional[List[str]],
+              turns_used: Optional[int] = None) -> Dict[str, Any]:
     """Return {check_name: bool} plus details for every expectation in the case.
 
     Only the checks listed in the case's `expect` block are run. Every check fails when
@@ -202,6 +209,12 @@ def score_run(case: Dict[str, Any], meal_plan: Optional[List[Dict[str, Any]]],
         checks["shopping_list_excludes_pantry"] = has_plan and passed
         details["pantry_items_in_shopping_list"] = leaked
         details["possible_pantry_items"] = possible
+
+    if "min_turns_used" in expect:
+        # turns_used is None when the run timed out before reporting it.
+        passed = turns_used is not None and turns_used >= expect["min_turns_used"]
+        checks["min_turns_used"] = has_plan and passed
+        details["turns_used"] = turns_used
 
     all_passed = all(checks.values())
     return {"passed": all_passed, "checks": checks, "details": details}
@@ -382,6 +395,38 @@ def _judge_summary(runs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     }
 
 
+def category_summary(cases: List[Dict[str, Any]], runs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Pass rates per failure category, so you can see which kind of failure is most common.
+
+    A case can have several categories, so one run can count towards more than one category.
+    Works on saved results too: pass the cases and the "runs" list from eval_results.json.
+    """
+    categories_by_case = {}
+    for case in cases:
+        categories_by_case[case["id"]] = case.get("categories", [])
+
+    runs_by_category: Dict[str, List[Dict[str, Any]]] = {}
+    for run in runs:
+        for category in categories_by_case.get(run["case"], []):
+            runs_by_category.setdefault(category, []).append(run)
+
+    summary = {}
+    for category in sorted(runs_by_category):
+        category_runs = runs_by_category[category]
+        case_ids = set()
+        for run in category_runs:
+            case_ids.add(run["case"])
+        summary[category] = {
+            "cases": len(case_ids),
+            "runs": len(category_runs),
+            "pass_rate": _rate([run["passed"] for run in category_runs]),
+        }
+        judge = _judge_summary(category_runs)
+        if judge:
+            summary[category]["judge_pass_rate"] = judge["pass_rate"]
+    return summary
+
+
 def evaluate(model_path: str, cases: List[Dict[str, Any]], repeats: int = 3, timeout: int = 300,
              output: str = "eval_results.json", judge_model: Optional[str] = None) -> Dict[str, Any]:
     runs = []
@@ -392,7 +437,8 @@ def evaluate(model_path: str, cases: List[Dict[str, Any]], repeats: int = 3, tim
         for i in range(max(1, repeats)):
             print(f"[{case['id']}] run {i + 1}/{repeats} ...", flush=True)
             result = run_once(model_path, case, timeout, judge_model)
-            score = score_run(case, result.get("meal_plan"), result.get("shopping_list"))
+            score = score_run(case, result.get("meal_plan"), result.get("shopping_list"),
+                              result.get("turns_used"))
             run = {"case": case["id"], "repeat": i + 1, **result, **score}
             print(f"  passed={score['passed']} checks={score['checks']} error={result.get('error')}")
             if result.get("judge"):
@@ -425,6 +471,7 @@ def evaluate(model_path: str, cases: List[Dict[str, Any]], repeats: int = 3, tim
         "overall_pass_rate": _rate([r["passed"] for r in runs]),
         "errors": sum(s["errors"] for s in case_summaries.values()),
         "timeouts": sum(s["timeouts"] for s in case_summaries.values()),
+        "per_category": category_summary(cases, runs),
         "per_case": case_summaries,
         "possible_pantry_items_to_review": _possible_pantry_items(runs),
     }
@@ -446,6 +493,8 @@ def _cli():
     p.add_argument("--model", "-m", default=config.MODEL_PATH, help="Path to MLX model directory")
     p.add_argument("--cases", "-c", default=DEFAULT_CASES, help="JSONL file of golden cases")
     p.add_argument("--case", action="append", help="Only run the case with this id (repeatable)")
+    p.add_argument("--category", action="append",
+                   help="Only run cases tagged with this failure category, e.g. conversation (repeatable)")
     p.add_argument("--repeats", "-n", type=int, default=3, help="Runs per case")
     p.add_argument("--timeout", "-t", type=int, default=300, help="Timeout (seconds) per run, including model load")
     p.add_argument("--output", "-o", default="eval_results.json", help="Output JSON file for results")
@@ -463,6 +512,18 @@ def _cli():
         if unknown:
             p.error(f"unknown case id(s): {', '.join(sorted(unknown))}")
         cases = [c for c in cases if c["id"] in args.case]
+    if args.category:
+        known = set()
+        for case in cases:
+            known.update(case["categories"])
+        unknown = set(args.category) - known
+        if unknown:
+            p.error(f"unknown category(ies): {', '.join(sorted(unknown))}. Known: {', '.join(sorted(known))}")
+        selected = []
+        for case in cases:
+            if set(case["categories"]) & set(args.category):
+                selected.append(case)
+        cases = selected
     evaluate(args.model, cases, args.repeats, args.timeout, args.output, args.judge_model)
 
 
