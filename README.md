@@ -77,36 +77,65 @@ The judge prompt (`JUDGE_SYSTEM` in `eval.py`) follows the
 
 ### Latest results
 
-Agent: Llama 3 8B (MLX), temperature 0.7. Judge: Gemma 4 E4B. 5 cases × 3 runs (`eval_results.json`).
+Agent: Llama 3 8B (MLX), temperature 0.7. Judge: Gemma 4 E4B. 19 cases × 3 runs (`eval_results.json`).
 
-| Case | Rule checks passed | Failed rule check | Judge passed | Judge score (1–5) | For review | Avg meal-plan time |
-|---|:-:|---|:-:|:-:|---|--:|
-| `veg_3day_breakfast_dinner` | 3/3 | — | 3/3 | 4.67 | judge: `veggie broth` in breakfasts | 52.8 s |
-| `two_day_all_meals` | 3/3 | — | 3/3 | 4.67 | — | 61.4 s |
-| `gluten_free_1day` | 2/3 | forbidden ingredient: `Brown rice tortilla`¹ | 3/3 | 5.00 | `sweet potatoes` | 43.1 s |
-| `dinner_only_4day_stocked_pantry` | 3/3 | —² | 3/3 | 4.33 | — | 67.4 s |
-| `pescatarian_2day_lunch` | 3/3 | — | 3/3 | 5.00 | — | 42.6 s |
-| **Overall** | **14/15 (93%)** | | **15/15 (100%)** | **4.73** | | |
+**By failure category.** A case can have several categories (see [FAILURE_TAXONOMY.md](FAILURE_TAXONOMY.md)).
 
-What changed since the last run: the agent prompt now says every meal must list all its ingredients, including ones
-that must be bought, and the judge prompt describes every score level and asks for `issues` first. In the run
-before, told to build meals around the pantry, the model listed only pantry items (e.g. "Lentil Soup" with just
-`salt`); the rule checks passed 3/3 but the judge passed 0/3. Now every meal lists real ingredients.
+| Category | Cases | Rule checks passed | Judge passed |
+|---|:-:|:-:|:-:|
+| `shopping_list` | 7 | 100% | 100% |
+| `coherence` | 4 | 92% | 92% |
+| `plan_shape` | 4 | 75% | 90% |
+| `conversation` | 5 | 73% | 93% |
+| `constraint` | 11 | 73% | 82% |
+| `implied_ingredient` | 5 | 60% | 60% |
+| **Overall** | **19** | **77% (44/57)** | **85% (47/55)**¹ |
 
-Reading all 15 plans by hand, 13 are fine and 2 are borderline. None has a real problem:
-- ¹ **False alarm:** `tortilla` is on the gluten-free list, but a brown rice tortilla is gluten-free. The plan is fine.
-- ² **Borderline, passed by both graders:** one dinner run still leans on the pantry: "Grilled Chicken with Roasted
-  Vegetables" lists only onion and garlic as vegetables, and the shopping list is just `tortillas`. The judge noted it
-  but still gave a 5.
-- **Borderline:** one vegetarian run puts `veggie broth` in avocado toast, scrambled tofu and an omelette.
-- **Judge doesn't always follow its rubric:** it gave a 5 (meaning "no issues") to 2 plans while listing an issue,
-  and sometimes writes praise in `issues`. A 15/15 judge pass rate can't be trusted until the judge is checked
-  against human labels (see PRODUCTION_IMPROVEMENTS.md).
-- **Shopping list duplicates:** `onion` and `onions` (and `veggie broth` and `vegetable broth`) can both appear,
-  because duplicates are only removed when the text is exactly the same.
-- **Not seen in this run:** ingredients bundled into one string. It isn't fixed, it just didn't happen.
-- **For review:** shopping items that might be pantry items (they don't fail the run), plus judge issues.
-- The judge took ~30 s per plan on top of the meal-plan time.
+A category's pass rate counts a run as failed if *any* check fails, not just the check for that category.
+`constraint` and `implied_ingredient` look low, but no plan broke a diet: those cases failed `meal_types`.
+
+**By case:**
+
+| Case | Rule checks passed | Failed rule check | Judge passed | Judge score (1–5) |
+|---|:-:|---|:-:|:-:|
+| `veg_3day_breakfast_dinner` | 3/3 | — | 3/3 | 5.00 |
+| `two_day_all_meals` | 3/3 | — | 3/3 | 5.00 |
+| `gluten_free_1day` | 3/3 | — | 3/3 | 5.00 |
+| `dinner_only_4day_stocked_pantry` | 3/3 | — | 3/3 | 4.00 |
+| `pescatarian_2day_lunch` | 3/3 | — | 3/3 | 5.00 |
+| `late_peanut_allergy_with_peanuts_in_pantry` | 3/3 | — | 3/3 | 4.67 |
+| `vegetarian_with_meat_in_pantry` | 3/3 | — | 3/3 | 5.00 |
+| `change_of_mind_to_vegetarian` | 3/3 | — | 3/3 | 5.00 |
+| `change_of_mind_number_of_days` | 3/3 | — | 3/3 | 5.00 |
+| `vague_request` | 2/3 | no plan (1 run) | 2/3 | 5.00 |
+| `conflict_vegan_cheese_omelette` | 0/3 | `meal_types`: added lunch | 3/3 | 4.67 |
+| `no_restrictions_empty_pantry` | 3/3 | — | 3/3 | 5.00 |
+| `vegetarian_gluten_free_dairy_free` | 0/3 | `meal_types`: added breakfast | 0/3 | 3.67 |
+| `tree_nut_allergy_hidden_nuts` | 3/3 | — | 3/3 | 4.67 |
+| `coeliac_asian_hidden_gluten` | 3/3 | — | 3/3 | 5.00 |
+| `halal_no_pork_no_alcohol` | 0/3 | `meal_types`: added breakfast | 0/3 | 3.00 |
+| `full_week_three_meals` | 0/3 | 2 timeouts; 1 plan cut off after 8 of 21 meals | 0/1¹ | 2.00 |
+| `use_my_pantry_but_list_everything` | 3/3 | — | 3/3 | 4.33 |
+| `pantry_with_plurals_and_qualifiers` | 3/3 | — | 3/3 | 5.00 |
+
+¹ The 2 timed-out runs produced no plan, so the judge had nothing to grade.
+
+Reading all 57 plans by hand:
+- **All 13 rule-check failures are real.** There were no false alarms this run.
+- **No plan broke a diet.** Late allergies, changes of mind, meat in a vegetarian's pantry and hidden gluten
+  (the model used gluten-free soy sauce and rice noodles) were all handled correctly.
+- **Biggest problem: the agent ignores which meals were asked for** when the same message also lists diet rules.
+  9 runs added breakfast or lunch the user didn't ask for.
+- **A full week is too long a reply.** At `LLM_MAX_TOKENS` = 1024, 2 runs timed out in the repair loop and 1 returned
+  only 8 of 21 meals.
+- **Vague request:** 1 run kept asking questions even after "Please give me the meal plan now", so there was no plan.
+  Another built a 5-day plan from nothing.
+- **The judge missed 4 real problems; the rules missed none.** The judge passed all 3 vegan runs with an extra lunch
+  while naming it in `issues`, and gave a 5 to the 5-day vague plan even though its criteria said a long invented
+  plan isn't acceptable.
+- **Pantry matching doesn't handle quantities.** `1 lb boneless chicken breast` and `1/4 cup extra virgin olive oil`
+  are pantry items but were listed for review instead of removed. `diced` should be a same-item qualifier.
+- **Times aren't reported** because the Mac slept during the run. A plan normally takes ~50–70 s, plus ~30 s for the judge.
 
 ## Known limitations
 
