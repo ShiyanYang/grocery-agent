@@ -1,6 +1,6 @@
 # Production-Grade Code Review & Improvements
 
-_Last updated: 2026-11-23_
+_Last updated: 2026-11-26_
 
 ## ✅ Completed
 
@@ -25,7 +25,7 @@ _Last updated: 2026-11-23_
 16. ✅ **JSON schema validation** of meal plans (`MEAL_PLAN_SCHEMA` + `jsonschema`).
 17. ✅ **Self-repair loop**: invalid plans are sent back to the model with specific feedback, up to `MAX_REPAIR_ATTEMPTS` times.
 18. ✅ **Injectable I/O**: `generate_meal_plan(input_fn, output_fn)` lets tests, the eval and the GUI script the conversation.
-19. ✅ **Unit tests** (`test/`, pytest, 77 tests, all passing): the LLM is mocked, so no model is needed.
+19. ✅ **Unit tests** (`test/`, pytest, 80 tests, all passing): the LLM is mocked, so no model is needed.
 20. ✅ **Evaluation harness** (`eval.py`): scripted cases run several times each and are graded by rule checks and an LLM judge; results go to `eval_results.json` and the README.
 21. ✅ **Desktop chat GUI** (`chat_gui.py`, run via `run_gui.py`).
 22. ✅ **Test & Quality agent** definition for coding assistants (`.github/agents/test-quality.agent.md`).
@@ -51,33 +51,77 @@ _Last updated: 2026-11-23_
 36. ✅ **GUI usability**: editable pantry panel, the meal plan as a table with a per-meal "To buy" column, speaker icons, and a processing animation instead of the spinning wheel.
 37. ✅ **Friendlier GUI redesign**: a warm kitchen theme with chat bubbles, tap-to-answer suggestions, the meal plan as day cards, a tick-off shopping list, and the agent's internal status messages hidden or turned into plain words.
 
-### Round 6: judge prompt
+### Round 6: judge and agent prompts
 38. ✅ **Judge prompt follows the [Hugging Face LLM-as-a-judge guide](https://huggingface.co/learn/cookbook/llm_judge)**:
     every score from 1 to 5 now has a description (before, only 1 and 5 did), and the judge writes `issues` before
     its verdict and score, so it looks for problems before it decides. In the next full run the judge still gave a 5
     ("no issues") to 2 plans while listing an issue.
+39. ✅ **Pantry prompt asks for every ingredient**: `_pantry_instruction()` in `agent.py` tells the model that buying
+    is expected and each meal must list every ingredient the dish needs, so plans no longer leave out ingredients
+    that aren't in the pantry ("Lentil Soup" with only salt). On 5 cases × 3 runs: rule checks 14/15, judge 15/15,
+    average judge score 4.73 (up from 3.33). The vegetarian case went from judge 0/3 to 3/3.
+
+### Round 7: failure categories and a bigger eval
+40. ✅ **Failure taxonomy** (`FAILURE_TAXONOMY.md`): six categories built from reading transcripts (`constraint`,
+    `implied_ingredient`, `plan_shape`, `coherence`, `shopping_list`, `conversation`), plus a separate list of grader
+    errors. Every eval case lists the categories it targets and a note on what correct behaviour looks like.
+41. ✅ **14 new eval cases (19 in total)**: late allergy, change of mind, vague and conflicting requests, hidden
+    ingredients, halal, a full week, and pantry edge cases.
+42. ✅ **New `min_turns_used` rule check**: fails a plan made before a late turn (e.g. "Oh, I'm allergic to peanuts") was read.
+43. ✅ **Pass rate per category** in the eval summary (`per_category`), and `python eval.py --category <name>` runs one category.
+44. ✅ **Full eval run, 19 cases × 3 runs**: rule checks 44/57 (77%), judge 47/55 (85%). All 13 rule failures were real,
+    and no plan broke a diet. The judge missed 4 real problems that the rules caught. New problems found are under
+    High priority below.
 
 ---
 
 ## 🔴 High priority
 
-### 1. Ingredients bundled into one string
-In 2 of the last 15 runs, the model wrote each meal's ingredients as one comma-separated string
+### 1. The agent adds meals the user didn't ask for
+The biggest problem in the 19-case run: in 9 runs, the user asked for certain meals (e.g. "just dinner") in the
+same message as diet rules, and the plan added breakfast or lunch anyway. It hit `conflict_vegan_cheese_omelette`,
+`vegetarian_gluten_free_dairy_free` and `halal_no_pork_no_alcohol` in every run. The rule check `meal_types` catches
+it. Options: restate the requested meal types as their own rule in the system prompt, and/or check meal types in
+`_check_meal_plan` so self-repair sends specific feedback ("remove breakfast; only dinner was requested").
+
+### 2. A full week is too long for one reply
+`full_week_three_meals` failed every run: at `LLM_MAX_TOKENS` = 1024, 2 runs timed out in the repair loop and 1
+returned only 8 of 21 meals. Options: raise `LLM_MAX_TOKENS` for long plans, or generate the plan one day at a time
+and join the days.
+
+### 3. Ingredients bundled into one string
+In 2 of 15 earlier runs, the model wrote each meal's ingredients as one comma-separated string
 (`["pasta, canned tomatoes, olive oil, ..."]`). The schema accepts it, so neither grader noticed: the shopping
 list became 4 long entries and pantry items weren't removed. Options: reject it in `_check_meal_plan` with repair
 feedback, or split it in `_flatten_ingredients` (careful: `"boneless, skinless chicken breast"` is one item),
-and add a rule check so the eval catches it. #6 (structured ingredients) would also prevent it.
+and add a rule check so the eval catches it. #9 (structured ingredients) would also prevent it.
 
-### 2. Pantry matching still guesses from free text
-The agent now removes leaks like `chicken breasts` (item 30), but entries with unknown words such as
-`brown rice` vs pantry `rice` are kept on the list and need a human decision. Long term: see #6 (structured ingredients).
+### 4. Pantry matching still guesses from free text
+The agent removes leaks like `chicken breasts` (item 30), but:
+- Entries with unknown words such as `brown rice` vs pantry `rice` are kept on the list and need a human decision.
+- **Quantities aren't handled**: `1 lb boneless chicken breast` and `1/4 cup extra virgin olive oil` are pantry items
+  but were listed for review instead of removed. Strip leading amounts and units before matching.
+- `diced` should be added to `SAME_ITEM_QUALIFIERS` in `ingredient_match.py`.
+- **Duplicates**: `onion` and `onions` can both appear on the shopping list, and no rule check catches it.
 
-### 3. Remaining grader errors
-- **Meal-name false alarm**: "Crab-Free Tuna Wrap" fails the forbidden-ingredient check. Ignore negated
-  terms ("crab-free", "no crab") in meal names.
-- **Judge passes plans while naming the problem**: Gemma marked gelatin cups (vegetarian) and granola
-  ("no nuts") compliant but listed them in `issues`. Read `issues` on passing runs too.
-- **Judge is slow**: ~55 s per plan, adding ~14 minutes to a 15-run eval.
+Long term: see #9 (structured ingredients).
+
+### 5. Vague requests
+In `vague_request`, 1 run kept asking questions even after "Please give me the meal plan now", so there was no plan,
+and another built a 5-day plan from nothing. The correct behaviour for this case (and for
+`conflict_vegan_cheese_omelette`) is still marked **PRODUCT DECISION NEEDED** in its `note`: decide it, then make
+the agent stop asking and plan with sensible defaults once the user asks for the plan.
+
+### 6. Remaining grader errors
+- **Judge passes plans while naming the problem**: the most common judge error. In the 19-case run it passed all
+  3 vegan runs with an extra lunch while naming the lunch in `issues`, and gave a 5 to the 5-day vague plan although
+  its criteria said a long invented plan isn't acceptable. Earlier, it passed gelatin cups (vegetarian) and granola
+  ("no nuts") the same way. Options: tell the judge that any real issue means `pass: false`, or fail the run in
+  code when `issues` is not empty and the score is below 5.
+- **Rule false alarms**: "Crab-Free Tuna Wrap" fails the forbidden-ingredient check, and "brown rice tortilla" was
+  flagged in a gluten-free plan. Ignore negated terms ("crab-free", "no crab") in meal names, and use
+  `forbidden_exceptions` for items like "rice tortilla".
+- **Judge is slow**: ~55 s per plan, adding ~50 minutes to a 57-run eval.
 - **Human check of the judge**: the 37 labeled plans were judged by one person, only 1 real plan was bad,
   and the labels weren't saved, so the check can't be repeated. Following the Hugging Face guide:
   - Save the labels to a file (e.g. `eval_data/human_labels.jsonl`). Each label gets the same 1–5 score and
@@ -86,7 +130,7 @@ The agent now removes leaks like `chicken breasts` (item 30), but entries with u
   - Add a script that reports agreement: correlation for the 1–5 score and percent agreement for each yes/no field.
   - Rerun it after every judge prompt or model change, so changes like item 38 are measured rather than assumed.
 
-### 4. File locking for pantry/memory
+### 7. File locking for pantry/memory
 Two processes writing `data/pantry.json` at once (e.g. `app.py` and the GUI, which now edits the pantry) can lose updates:
 ```python
 from filelock import FileLock
@@ -96,29 +140,33 @@ def load_pantry():
         ...
 ```
 
-### 5. Delete the unused GGUF model
+### 8. Delete the unused GGUF model
 The 4.7 GB `.gguf` file from the llama-cpp setup is no longer used since the switch to MLX.
 
 ---
 
 ## 🟠 Medium priority
 
-### 6. Structured ingredients
+### 9. Structured ingredients
 Ingredients are free text, so every pantry comparison has to guess which words are the item ("cooked brown
-rice"). Change each ingredient in `MEAL_PLAN_SCHEMA` to `{"item": "chicken breast", "prep": "boneless"}` so the
-agent and the eval compare only `item`. Needs a schema, prompt and `_flatten_ingredients` change, and an eval
-run to confirm the 8B model follows it.
+rice", "1 lb boneless chicken breast"). Change each ingredient in `MEAL_PLAN_SCHEMA` to
+`{"item": "chicken breast", "prep": "boneless", "amount": "1 lb"}` so the agent and the eval compare only `item`.
+Needs a schema, prompt and `_flatten_ingredients` change, and an eval run to confirm the 8B model follows it.
 
-### 7. Try Gemma 4 E4B as the agent model
-It's far stronger than Llama 3 8B (MMLU-Pro ~69% vs ~41%) and smaller (5 GB vs 8 GB). Before switching:
-strip its thinking text in `generate_text` (the GUI shows replies as they come), run the eval and compare
-transcripts. If it becomes the agent, change the judge too (e.g. test Gemma 4 26B-A4B), so the model isn't grading itself.
+### 10. Try Gemma 4 E4B as the agent model
+It's far stronger than Llama 3 8B (MMLU-Pro ~69% vs ~41%) and smaller (5 GB vs 8 GB). It may also fix #1 (following
+the requested meal types). Before switching: strip its thinking text in `generate_text` (the GUI shows replies as
+they come), run the eval and compare transcripts. If it becomes the agent, change the judge too (e.g. test Gemma 4
+26B-A4B), so the model isn't grading itself.
 
-### 8. More tests
+### 11. More tests and eval cases
 - `pantry.py` and `memory.py` have no tests yet (load/save, missing or corrupt files).
-- Grow the eval dataset beyond 5 cases: allergies, conflicting requests, users who change their mind mid-conversation.
+- The eval now has 19 cases (item 41). Gaps from `FAILURE_TAXONOMY.md`:
+  - A **change of mind after the plan** can't be tested, because the agent ends the conversation once it has a valid plan.
+  - Add a rule check for **shopping-list duplicates** (#4).
+  - Only 3 runs per case, so one run changes a case's pass rate by 33%. Use more runs for the cases that matter most.
 
-### 9. Module docstrings and examples
+### 12. Module docstrings and examples
 `agent.py`, `pantry.py` and `memory.py` have no module docstring:
 ```python
 """
@@ -132,7 +180,7 @@ Example:
 """
 ```
 
-### 10. Structured logging
+### 13. Structured logging
 JSON log format for production:
 ```python
 class JSONFormatter(logging.Formatter):
@@ -141,7 +189,7 @@ class JSONFormatter(logging.Formatter):
                            "logger": record.name, "message": record.getMessage()})
 ```
 
-### 11. API layer
+### 14. API layer
 FastAPI/Flask endpoint. This needs the meal-plan conversation to work over requests instead of `input()`;
 the injectable `input_fn`/`output_fn` are a first step, and the GUI (item 35) already drives the conversation this way:
 ```python
@@ -152,14 +200,14 @@ def generate_meal_plan():
     ...
 ```
 
-### 12. Database instead of JSON files
-SQLite for the pantry and memory (also solves #4):
+### 15. Database instead of JSON files
+SQLite for the pantry and memory (also solves #7):
 ```python
 conn.execute("""CREATE TABLE IF NOT EXISTS pantry (
     id INTEGER PRIMARY KEY, item TEXT UNIQUE, added_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
 ```
 
-### 13. Packaging / deployment
+### 16. Packaging / deployment
 MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't work. Options: a
 `pyproject.toml` for installation, or support a second backend (e.g. llama-cpp or an API) for Linux/Docker.
 
@@ -167,12 +215,12 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
 
 ## 🟡 Nice to have
 
-14. **Custom exceptions**: `MealPlanGenerationError`, `PantryAccessError`
-15. **CLI with Click/Typer**: e.g. `grocery plan --days 3`
-16. **Monitoring**: generation time and repair attempts per request (eval already records timings)
-17. **Graceful degradation**: fallback meal plan if the model fails to load
-18. **Security**: sanitize ingredient names; rate limiting if exposed via an API
-19. **Async generation** (only matters once there's an API serving several users)
+17. **Custom exceptions**: `MealPlanGenerationError`, `PantryAccessError`
+18. **CLI with Click/Typer**: e.g. `grocery plan --days 3`
+19. **Monitoring**: generation time and repair attempts per request (eval already records timings)
+20. **Graceful degradation**: fallback meal plan if the model fails to load
+21. **Security**: sanitize ingredient names; rate limiting if exposed via an API
+22. **Async generation** (only matters once there's an API serving several users)
 
 ---
 
@@ -182,10 +230,11 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
 - [ ] Unit tests for `pantry.py` and `memory.py`
 - [x] LLM output validation tests (schema, JSON, self-repair)
 - [x] End-to-end eval of the meal-plan pipeline (`eval.py`)
+- [x] Eval cases tagged by failure category, with per-category pass rates
 - [x] Error handling tests for edge cases (None/empty plans, malformed meals)
 - [ ] Memory persistence tests
 - [ ] Concurrent access tests for pantry file operations
-- [x] Performance timings (per-run in eval results)
+- [ ] Performance timings (recorded per run, but missing from the 19-case run because the Mac slept)
 - [x] Grader validation against human verdicts (judge comparison on 37 labeled plans)
 - [ ] Load testing with multiple users
 
@@ -194,27 +243,31 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
 ## Next steps
 
 1. **Now**
-   - [x] Add `jsonschema` to `requirements.txt`
-   - [x] Fix the failing self-repair test
-   - [x] Leak-aware pantry matching in the agent
-   - [x] Fresh `python eval.py` run, so `eval_results.json` matches the README table and includes judge scores
+   - [ ] Make the agent follow the requested meal types (#1)
+   - [ ] Fix full-week plans running out of tokens (#2)
    - [ ] Catch ingredients bundled into one string (agent + eval)
+   - [ ] Rerun the eval with the Mac kept awake (`caffeinate -i python eval.py`) so timings are recorded
    - [x] Fresh `python eval.py` run with the new judge prompt, then update the README results table
+   - [x] Pantry prompt asks for every ingredient (item 39)
+   - [x] Failure categories and 14 new eval cases (items 40–44)
 2. **Short term**
-   - [x] Stronger judge model; spot-check verdicts
-   - [ ] Fix the "Crab-Free" meal-name false alarm
-   - [x] Shape-specific repair feedback for nested meal plans
+   - [ ] Judge: fail plans whose `issues` name a real problem
+   - [ ] Fix the "Crab-Free" and "brown rice tortilla" false alarms
+   - [ ] Pantry matching: strip quantities, add `diced`, catch duplicates (#4)
+   - [ ] Decide the correct behaviour for the two PRODUCT DECISION NEEDED cases (#5)
    - [ ] Save human labels to a file, with an agreement script
    - [ ] Tests for `pantry.py` / `memory.py`
    - [ ] File locking
-   - [x] Config/repo cleanup and finish the repo rename
-   - [x] GUI runs the real agent, with pantry editing and a meal-plan table
    - [ ] Run the GUI end to end with the MLX model
    - [ ] Pin all installed versions (`pip freeze > requirements.lock`)
+   - [x] Stronger judge model; spot-check verdicts
+   - [x] Shape-specific repair feedback for nested meal plans
+   - [x] Config/repo cleanup and finish the repo rename
+   - [x] GUI runs the real agent, with pantry editing and a meal-plan table
 3. **Medium term**
-   - [ ] Structured ingredients (`item` + `prep`)
+   - [ ] Structured ingredients (`item` + `prep` + `amount`)
    - [ ] Try Gemma 4 E4B as the agent model
-   - [ ] Bigger eval dataset
+   - [x] Bigger eval dataset (5 → 19 cases)
    - [ ] Structured logging
    - [ ] API layer, database
 4. **Long term**
