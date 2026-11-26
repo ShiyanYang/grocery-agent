@@ -140,8 +140,6 @@ def load_pantry():
         ...
 ```
 
-### 8. Delete the unused GGUF model
-The 4.7 GB `.gguf` file from the llama-cpp setup is no longer used since the switch to MLX.
 
 ---
 
