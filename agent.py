@@ -150,12 +150,13 @@ class Agent:
         CRITICAL INSTRUCTIONS:
         1. The first question is always about the number of days for meal planning.
         2. You need to understand the user's preferences and dietary restrictions.
-        3. After each question, your next response is either a follow-up question or the meal plan.
-        4. The meal plan response must be in JSON format only. It must follow this schema:
+        3. Plan only the meals the user asks for (breakfast, lunch, dinner, snacks) and do not add extra meals.
+        4. After each question, your next response is either a follow-up question or the meal plan.
+        5. The meal plan response must be in JSON format only. It must follow this schema:
     '''
     [
-      {"day": "Day 1", "meal_type": "breakfast", "meal_name": "...", "ingredients": ["...", "..."]},
-      {"day": "Day 1", "meal_type": "lunch", "meal_name": "...", "ingredients": ["...", "..."]}
+      {"day": "Day 1", "meal_type": "<a meal the user asked for>", "meal_name": "...", "ingredients": ["...", "..."]},
+      {"day": "Day 1", "meal_type": "<a meal the user asked for>", "meal_name": "...", "ingredients": ["...", "..."]}
     ]
     '''
         """ + self._pantry_instruction(pantry_list) + "\n"
