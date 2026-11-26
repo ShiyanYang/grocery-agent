@@ -94,31 +94,6 @@ Agent: Llama 3 8B (MLX), temperature 0.7. Judge: Gemma 4 E4B. 19 cases × 3 runs
 A category's pass rate counts a run as failed if *any* check fails, not just the check for that category.
 `constraint` and `implied_ingredient` look low, but no plan broke a diet: those cases failed `meal_types`.
 
-**By case:**
-
-| Case | Rule checks passed | Failed rule check | Judge passed | Judge score (1–5) |
-|---|:-:|---|:-:|:-:|
-| `veg_3day_breakfast_dinner` | 3/3 | — | 3/3 | 5.00 |
-| `two_day_all_meals` | 3/3 | — | 3/3 | 5.00 |
-| `gluten_free_1day` | 3/3 | — | 3/3 | 5.00 |
-| `dinner_only_4day_stocked_pantry` | 3/3 | — | 3/3 | 4.00 |
-| `pescatarian_2day_lunch` | 3/3 | — | 3/3 | 5.00 |
-| `late_peanut_allergy_with_peanuts_in_pantry` | 3/3 | — | 3/3 | 4.67 |
-| `vegetarian_with_meat_in_pantry` | 3/3 | — | 3/3 | 5.00 |
-| `change_of_mind_to_vegetarian` | 3/3 | — | 3/3 | 5.00 |
-| `change_of_mind_number_of_days` | 3/3 | — | 3/3 | 5.00 |
-| `vague_request` | 2/3 | no plan (1 run) | 2/3 | 5.00 |
-| `conflict_vegan_cheese_omelette` | 0/3 | `meal_types`: added lunch | 3/3 | 4.67 |
-| `no_restrictions_empty_pantry` | 3/3 | — | 3/3 | 5.00 |
-| `vegetarian_gluten_free_dairy_free` | 0/3 | `meal_types`: added breakfast | 0/3 | 3.67 |
-| `tree_nut_allergy_hidden_nuts` | 3/3 | — | 3/3 | 4.67 |
-| `coeliac_asian_hidden_gluten` | 3/3 | — | 3/3 | 5.00 |
-| `halal_no_pork_no_alcohol` | 0/3 | `meal_types`: added breakfast | 0/3 | 3.00 |
-| `full_week_three_meals` | 0/3 | 2 timeouts; 1 plan cut off after 8 of 21 meals | 0/1¹ | 2.00 |
-| `use_my_pantry_but_list_everything` | 3/3 | — | 3/3 | 4.33 |
-| `pantry_with_plurals_and_qualifiers` | 3/3 | — | 3/3 | 5.00 |
-
-¹ The 2 timed-out runs produced no plan, so the judge had nothing to grade.
 
 Reading all 57 plans by hand:
 - **All 13 rule-check failures are real.** There were no false alarms this run.
