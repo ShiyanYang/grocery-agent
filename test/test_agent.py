@@ -12,7 +12,10 @@ Tests cover critical, easy-to-break functionality:
 import json
 import pytest
 from unittest.mock import MagicMock, patch
-from agent import Agent, find_meal_types, find_refused_meal_types, update_requested_meal_types
+from agent import Agent, build_system_prompt
+from meal_plan import check_meal_plan
+from meal_types import find_meal_types, find_refused_meal_types, update_requested_meal_types
+from shopping_list import build_shopping_list
 from config import config
 
 
@@ -75,12 +78,17 @@ def test_generate_shopping_list_pantry_search_fails(agent):
 
 # ============ CRITICAL LOGIC: PANTRY FILTERING WITH DEDUPLICATION ============
 
+def _filter(ingredients, pantry):
+    """The shopping list for one meal with these ingredients."""
+    return build_shopping_list([{"ingredients": ingredients}], pantry)
+
+
 def test_filter_removes_pantry_items(agent):
     """Test filtering removes items already in pantry."""
     ingredients = ["eggs", "tomato", "salt"]
     pantry = ["tomato", "salt"]
     
-    result = agent._filter_out_pantry_items(ingredients, pantry)
+    result = _filter(ingredients, pantry)
     
     assert "eggs" in result
     assert "tomato" not in result
@@ -92,7 +100,7 @@ def test_filter_handles_case_insensitivity(agent):
     ingredients = ["Eggs", "TOMATO", "Salt"]
     pantry = ["tomato", "SALT"]
     
-    result = agent._filter_out_pantry_items(ingredients, pantry)
+    result = _filter(ingredients, pantry)
     
     assert len(result) == 1
     assert result[0].lower() == "eggs"
@@ -103,7 +111,7 @@ def test_filter_deduplicates_ingredients(agent):
     ingredients = ["eggs", "eggs", "Eggs", "tomato", "TOMATO"]
     pantry = []
     
-    result = agent._filter_out_pantry_items(ingredients, pantry)
+    result = _filter(ingredients, pantry)
     
     assert len(result) == 2  # eggs (1x) and tomato (1x)
 
@@ -113,7 +121,7 @@ def test_filter_handles_whitespace(agent):
     ingredients = ["eggs", "  tomato  ", "salt "]
     pantry = [" TOMATO ", "salt"]
     
-    result = agent._filter_out_pantry_items(ingredients, pantry)
+    result = _filter(ingredients, pantry)
     
     assert len(result) == 1
     assert result[0].lower() == "eggs"
@@ -123,14 +131,14 @@ def test_filter_with_none_pantry(agent):
     """Test filtering treats None pantry as empty."""
     ingredients = ["eggs", "tomato"]
     
-    result = agent._filter_out_pantry_items(ingredients, None)
+    result = _filter(ingredients, None)
     
     assert len(result) == 2
 
 
 def test_filter_with_empty_ingredients(agent):
     """Test filtering empty ingredients list."""
-    result = agent._filter_out_pantry_items([], ["tomato"])
+    result = _filter([], ["tomato"])
     assert result == []
 
 
@@ -184,7 +192,7 @@ def test_all_ingredients_in_pantry(agent):
 
 def test_filter_removes_plural_of_pantry_item(agent):
     """'tomatoes' is the same item as pantry 'tomato' (this used to stay on the list)."""
-    result = agent._filter_out_pantry_items(["tomatoes"], ["tomato"])
+    result = _filter(["tomatoes"], ["tomato"])
     assert result == []
 
 
@@ -201,26 +209,22 @@ def test_filter_removes_plural_of_pantry_item(agent):
     ("eggplant", "egg", True),
 ])
 def test_filter_uses_eval_leak_rules(agent, ingredient, pantry_item, kept):
-    result = agent._filter_out_pantry_items([ingredient], [pantry_item])
+    result = _filter([ingredient], [pantry_item])
     assert (ingredient in result) is kept
 
 
 def test_filter_ignores_blank_pantry_entries(agent):
-    assert agent._filter_out_pantry_items(["eggs"], ["", "  "]) == ["eggs"]
+    assert _filter(["eggs"], ["", "  "]) == ["eggs"]
 
 
-def test_pantry_search_caches_result(agent):
-    """Test that pantry search caches results to avoid repeated calls."""
+def test_pantry_search_reads_disk_each_time(agent):
+    """The pantry may change between calls, so each search reads it again."""
     pantry_items = ["tomato", "salt"]
-    
+
     with patch("agent.list_items", return_value=pantry_items) as mock_list:
-        agent.search_pantry()
-        agent.search_pantry()
-        
-        # Called twice
+        assert agent.search_pantry() == pantry_items
+        assert agent.search_pantry() == pantry_items
         assert mock_list.call_count == 2
-        # Both times, result should be cached
-        assert agent.pantry_list == pantry_items
 
 
 def test_generate_shopping_list_handles_missing_ingredients_field(agent):
@@ -262,7 +266,7 @@ def test_nested_plan_gets_shape_feedback_not_json_error(agent):
     """Meals grouped inside a day are valid JSON in the wrong shape (seen in a real eval run)."""
     nested = json.dumps([{"day": "Day 1", "meals": [{"meal_type": "dinner", "meal_name": "Stir fry",
                                                      "ingredients": ["tofu", "rice"]}]}])
-    plan, feedback = agent._check_meal_plan("Here is your plan: " + nested)
+    plan, feedback = check_meal_plan("Here is your plan: " + nested)
     assert plan is None
     assert "not valid JSON" not in feedback
     assert "does not match the schema" in feedback
@@ -271,19 +275,19 @@ def test_nested_plan_gets_shape_feedback_not_json_error(agent):
 
 def test_plan_with_text_and_code_fences_around_it_is_accepted(agent):
     reply = "Here is your plan:\n```json\n" + json.dumps(FLAT_PLAN) + "\n```\nEnjoy! [Note: adjust portions]"
-    assert agent._check_meal_plan(reply) == (FLAT_PLAN, None)
+    assert check_meal_plan(reply) == (FLAT_PLAN, None)
 
 
 def test_cut_off_plan_gets_json_feedback(agent):
     """A plan cut off mid-way is a broken plan, not a follow-up question."""
     cut_off = json.dumps(FLAT_PLAN * 3)[:-30]
-    plan, feedback = agent._check_meal_plan(cut_off)
+    plan, feedback = check_meal_plan(cut_off)
     assert plan is None
     assert "not valid JSON" in feedback
 
 
 def test_reply_without_plan_is_a_follow_up(agent):
-    assert agent._check_meal_plan("Any allergies? I can use [brackets] too.") == (None, None)
+    assert check_meal_plan("Any allergies? I can use [brackets] too.") == (None, None)
 
 
 # ============ PANTRY IN THE PROMPT ============
@@ -372,32 +376,32 @@ def test_find_meal_types(text, expected):
 def test_plan_with_extra_meal_type_gets_specific_feedback(agent):
     """Seen in conflict_vegan_cheese_omelette: breakfast and dinner asked for, lunch added."""
     reply = json.dumps(BREAKFAST_LUNCH_DINNER)
-    plan, feedback = agent._check_meal_plan(reply, {"breakfast", "dinner"})
+    plan, feedback = check_meal_plan(reply, {"breakfast", "dinner"})
     assert plan is None
     assert "Remove lunch; I asked only for breakfast and dinner." in feedback
 
 
 def test_plan_matching_requested_meal_types_is_accepted(agent):
     plan = [_meal("Breakfast "), _meal("DINNER"), _meal("Dinner", day="Day 2")]
-    assert agent._check_meal_plan(json.dumps(plan), {"breakfast", "dinner"}) == (plan, None)
+    assert check_meal_plan(json.dumps(plan), {"breakfast", "dinner"}) == (plan, None)
 
 
 def test_plural_meal_type_in_plan_is_accepted(agent):
     plan = [_meal("snacks")]
-    assert agent._check_meal_plan(json.dumps(plan), {"snack"}) == (plan, None)
+    assert check_meal_plan(json.dumps(plan), {"snack"}) == (plan, None)
 
 
 def test_meal_types_not_checked_when_none_requested(agent):
     """A vague request names no meals, so any meal types are fine."""
     reply = json.dumps(BREAKFAST_LUNCH_DINNER)
-    assert agent._check_meal_plan(reply, set()) == (BREAKFAST_LUNCH_DINNER, None)
-    assert agent._check_meal_plan(reply) == (BREAKFAST_LUNCH_DINNER, None)
+    assert check_meal_plan(reply, set()) == (BREAKFAST_LUNCH_DINNER, None)
+    assert check_meal_plan(reply) == (BREAKFAST_LUNCH_DINNER, None)
 
 
 def test_missing_meal_type_is_not_rejected(agent):
     """Only extra meals are flagged, never missing ones."""
     reply = json.dumps(BREAKFAST_DINNER)
-    plan, feedback = agent._check_meal_plan(reply, {"breakfast", "lunch", "dinner"})
+    plan, feedback = check_meal_plan(reply, {"breakfast", "lunch", "dinner"})
     assert feedback is None
 
 
@@ -429,18 +433,18 @@ def test_update_requested_meal_types(earlier, message, expected):
 @pytest.mark.parametrize("label", ["Afternoon Snack", "Snack 1", "Dinner (main)", "Supper"])
 def test_plan_label_containing_a_requested_meal_type_is_accepted(agent, label):
     plan = [_meal("breakfast"), _meal(label)]
-    assert agent._check_meal_plan(json.dumps(plan), {"breakfast", "dinner", "snack"}) == (plan, None)
+    assert check_meal_plan(json.dumps(plan), {"breakfast", "dinner", "snack"}) == (plan, None)
 
 
 def test_plan_label_with_no_known_meal_type_is_accepted(agent):
     plan = [_meal("dinner"), _meal("Meal 2")]
-    assert agent._check_meal_plan(json.dumps(plan), {"dinner"}) == (plan, None)
+    assert check_meal_plan(json.dumps(plan), {"dinner"}) == (plan, None)
 
 
 def test_requested_dessert_is_accepted_and_unrequested_dessert_is_flagged(agent):
     plan = [_meal("dinner"), _meal("Dessert")]
-    assert agent._check_meal_plan(json.dumps(plan), {"dinner", "dessert"}) == (plan, None)
-    _, feedback = agent._check_meal_plan(json.dumps(plan), {"dinner"})
+    assert check_meal_plan(json.dumps(plan), {"dinner", "dessert"}) == (plan, None)
+    _, feedback = check_meal_plan(json.dumps(plan), {"dinner"})
     assert "Remove dessert; I asked only for dinner." in feedback
 
 
@@ -473,3 +477,10 @@ def test_repair_feedback_does_not_count_as_a_meal_request(agent):
     replies = ["Any allergies?"] + [bad_plan] * (1 + config.MAX_REPAIR_ATTEMPTS)
     plan, _ = _run_meal_plan(agent, replies, ["1 day", "Breakfast and dinner.", "exit"])
     assert plan is None
+
+
+def test_system_prompt_rules_are_numbered_once_each():
+    """The pantry rule used to share number 5 with the JSON rule."""
+    prompt = build_system_prompt(["rice"])
+    for number in range(1, 7):
+        assert prompt.count(f"\n{number}. ") == 1

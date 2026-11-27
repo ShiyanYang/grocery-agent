@@ -37,7 +37,11 @@ python app.py       # manage the pantry: list, add <item>, remove <item>, help, 
 ## Project structure
 
 ```
-agent.py          # LLM agent: meal-plan conversation, JSON validation and self-repair, shopping list
+agent.py          # LLM agent: system prompt, meal-plan conversation and self-repair loop
+meal_types.py     # which meals the user asked for or refused, from their messages
+meal_plan.py      # find a meal plan in a model reply and check it (schema, extra meals)
+shopping_list.py  # turn a meal plan into what to buy, leaving out pantry items
+ingredient_match.py  # pantry matching rules shared by the shopping list and the eval
 pantry.py         # pantry storage (data/pantry.json)
 memory.py         # conversation history (memory/conversation.json)
 config.py         # settings with env-var overrides
