@@ -82,6 +82,12 @@ _Last updated: 2026-11-27_
     - The placeholder was never copied into a plan.
 46. ✅ **Automatic PR review** (PR #2): `.github/workflows/pr-review.yml` runs Claude on every pull request and
     posts inline comments. Needs the `ANTHROPIC_API_KEY` repository secret.
+47. ✅ **Meal-type safety net in code**: `generate_meal_plan` collects the meal types named in the user's own
+    messages (`find_meal_types`: breakfast, lunch, dinner, snack), and `_check_meal_plan` rejects a plan with any
+    other meal type, so self-repair sends "Remove lunch; only breakfast and dinner were requested." Repair feedback
+    is not scanned, or its "Remove lunch" would make lunch look requested. Only extra meals are flagged, not
+    missing ones, and "no lunch" still counts lunch as named, so negations can miss an extra meal but never reject
+    a good plan. If no meal type was named, nothing is checked. Unit tests in `test/test_agent.py`.
 
 ---
 
@@ -90,15 +96,16 @@ _Last updated: 2026-11-27_
 ### 1. The agent adds meals the user didn't ask for (mostly fixed)
 The biggest problem in the 19-case run: in 9 runs, the user asked for certain meals in the same message as diet
 rules, and the plan added breakfast or lunch anyway. The prompt rule (item 45) cut this from 9/9 to 1/9 runs on
-the same cases: `conflict_vegan_cheese_omelette` still added lunch once.
+the same cases: `conflict_vegan_cheese_omelette` still added lunch once. The code check (item 47) now rejects such
+a plan and asks for a fix. In the next run of the same 6 cases × 3 runs, meal types were right in all 18 runs, but
+the model got them right on its own, so the check never had to act.
 
 Still to do:
-- **Safety net in code**: check meal types in `_check_meal_plan`, so self-repair sends specific feedback ("remove
-  lunch; only breakfast and dinner were requested") instead of letting the plan through. This needs the requested
-  meal types from the conversation, which the agent doesn't track yet. It's a code change, so test it with unit tests.
-- **Watch for side effects of the longer prompt**: in the same runs, one `vegetarian_gluten_free_dairy_free` plan
-  used a "whole wheat wrap" (gluten), the first diet break since the categories were added. It may be chance;
-  rerun that case with `-n 5` before changing anything.
+- ~~**Safety net in code**~~: done (item 47). Unit tests cover the repair; the model hasn't yet added an extra
+  meal in an eval run, so the repair hasn't yet been seen fixing a real plan.
+- **Watch for side effects of the longer prompt**: in the item 45 runs, one `vegetarian_gluten_free_dairy_free`
+  plan used a "whole wheat wrap" (gluten), the first diet break since the categories were added. All 3 runs in
+  the item 47 run were clean, so it looks like chance (1 break in 6 runs); a run with `-n 5` would settle it.
 - **Confirm with a full run with the judge**: the tests so far used rule checks only, on 6 of 19 cases.
 
 ### 2. A full week is too long for one reply
@@ -158,6 +165,20 @@ def load_pantry():
     with FileLock("data/pantry.json.lock"):
         ...
 ```
+
+### 8. The plan can have the wrong number of days
+In the safety-net eval run (item 47), one `veg_3day_breakfast_dinner` run asked for 3 days and got a 1-day plan.
+The eval's `days` rule caught it, but the agent accepted the plan. Add a day-count check like the meal-type
+check:
+- Track the requested number of days from the user's own messages. Keep the latest number, because users change
+  their mind (`change_of_mind_number_of_days`: "make that 5 days instead of 3"). Accept digits and words ("3 days",
+  "three days", "a week" → 7). If no number is found, don't check.
+- In `_check_meal_plan`, count distinct day labels the same way as `_check_days` in `eval.py`. If the count is wrong,
+  send specific feedback, e.g. "The plan has 1 day; 3 days were requested. Plan Day 1 to Day 3."
+- Unit tests: parsing (digits, words, a change of mind, no number), the feedback text, and a repair run through
+  `generate_meal_plan`.
+- Watch `full_week_three_meals` (item 2): a 7-day plan already hits `LLM_MAX_TOKENS`, so a repair request for
+  all 7 days may run out of tokens again.
 
 
 ---

@@ -125,7 +125,7 @@ def agent():
 
 
 def test_generate_meal_plan_runs_on_scripted_input(agent):
-    turns = iter(["2 days", "breakfast only"])
+    turns = iter(["2 days", "breakfast and dinner"])
     output = []
     replies = ["How many meals a day?", json.dumps(GOOD_PLAN)]
     with patch.object(agent, "generate_text", side_effect=replies):

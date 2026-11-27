@@ -124,6 +124,24 @@ lunch. Tested on 6 cases × 3 runs, rule checks only (no judge):
 | The 3 that always added meals (`eval_quick.json`) | 8/9 (was 0/9) | 7/9 | 1 extra lunch; 1 "whole wheat wrap" in a gluten-free plan |
 | 3 that passed before (`eval_tier2_regression.json`) | 8/8 plans | 8/9 | 1 run asked more questions instead of planning |
 
+### After the meal-type safety net
+
+`_check_meal_plan` now also rejects a plan with a meal type the user didn't ask for, and self-repair tells the model
+which one to remove ("Remove lunch; only breakfast and dinner were requested."). Same 6 cases × 3 runs, rule checks
+only:
+
+| Cases | Meal types right | All rule checks passed | Other failures |
+|---|:-:|:-:|---|
+| The 3 that always added meals (`eval_quick_safety_net.json`) | 9/9 (was 8/9) | 9/9 (was 7/9) | none |
+| 3 that passed before (`eval_tier2_safety_net.json`) | 9/9 | 8/9 | 1 plan had 1 day instead of 3 |
+
+- **The meal-type check never had to act.** The model planned only the requested meals in all 18 runs, so the
+  9/9 is the model this time, not the repair. The repair itself is covered by unit tests in `test/test_agent.py`.
+- **Invalid JSON still costs time.** 2 `halal_no_pork_no_alcohol` runs sent broken JSON (a missing comma) and were
+  fixed by self-repair; one needed both attempts and took 172 s instead of ~55 s.
+- **New failure, unrelated to meal types:** one `veg_3day_breakfast_dinner` run asked for 3 days and planned 1.
+  The day count is checked by the eval but not by the agent.
+
 A full 19-case run with the judge is still to do.
 
 ## Known limitations

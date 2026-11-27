@@ -8,13 +8,40 @@ from config import config
 import json
 import re
 import logging
-from typing import Callable, Optional, Dict, List, Any, Tuple
+from typing import Callable, Optional, Dict, List, Any, Set, Tuple
 from jsonschema import validate, ValidationError
 
 logger = logging.getLogger(__name__)
 
 # A meal plan: one dict per meal with "day", "meal_type", "meal_name" and "ingredients".
 MealPlan = List[Dict[str, Any]]
+
+# Meal types the agent looks for in what the user says.
+MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"]
+
+
+def find_meal_types(text: str) -> Set[str]:
+    """The meal types named in one user message, e.g. 'Only breakfast and dinner.' -> {'breakfast', 'dinner'}.
+
+    Plurals count ('snacks' -> 'snack'). Negations are not understood: 'no lunch' still finds 'lunch'.
+    """
+    found = set()
+    for meal_type in MEAL_TYPES:
+        if re.search(rf"\b{meal_type}s?\b", text, re.IGNORECASE):
+            found.add(meal_type)
+    return found
+
+
+def _normalize_meal_type(name: str) -> str:
+    """'Breakfast ', 'SNACKS' -> 'breakfast', 'snack', so plan meal types compare with MEAL_TYPES."""
+    return name.strip().lower().removesuffix("s")
+
+
+def _join_words(words: List[str]) -> str:
+    """['lunch'] -> 'lunch'; ['breakfast', 'dinner'] -> 'breakfast and dinner'; three -> 'a, b and c'."""
+    if len(words) == 1:
+        return words[0]
+    return ", ".join(words[:-1]) + " and " + words[-1]
 
 # Added to every repair message sent back to the model.
 RESEND_PLAN = "Resend the complete meal plan as JSON only, following the schema."
@@ -167,7 +194,11 @@ class Agent:
         messages = [
             {"role":"system", "content": system_prompt}
             ]
-         
+        # Meal types the user has named so far. Built from the user's own messages only: repair
+        # feedback is also sent as a user message and names the extra meal ("Remove lunch ..."),
+        # so reading it would make that meal look requested.
+        requested_meal_types = set()
+
         while True:  
             try:
                 user_input = input_fn("You: ")
@@ -180,9 +211,10 @@ class Agent:
             messages.append({"role":"user","content": user_input})
             # Save user input to persistent memory
             self.memory.add(f"User: {user_input}")
-            
+            requested_meal_types.update(find_meal_types(user_input))
+
             content = self._ask(messages, output_fn)
-            plan, feedback = self._check_meal_plan(content)
+            plan, feedback = self._check_meal_plan(content, requested_meal_types)
 
             # The model attempted a plan but broke a rule: tell it what was wrong and let it retry.
             attempts = 0
@@ -192,7 +224,7 @@ class Agent:
                           f"(attempt {attempts}/{config.MAX_REPAIR_ATTEMPTS}): {feedback}")
                 messages.append({"role": "user", "content": feedback})
                 content = self._ask(messages, output_fn)
-                plan, feedback = self._check_meal_plan(content)
+                plan, feedback = self._check_meal_plan(content, requested_meal_types)
 
             if plan is not None:
                 meal_plan = plan
@@ -215,9 +247,11 @@ class Agent:
         self.memory.add(f"Assistant: {content}")
         return content
 
-    def _check_meal_plan(self, content: str) -> Tuple[Optional[MealPlan], Optional[str]]:
+    def _check_meal_plan(self, content: str, requested_meal_types: Optional[Set[str]] = None
+                         ) -> Tuple[Optional[MealPlan], Optional[str]]:
         """Extract and validate a meal plan from a model reply.
 
+        If requested_meal_types is given, a plan with any other meal type is rejected.
         Returns one of:
             (plan, None)      the reply contains a valid plan
             (None, feedback)  the reply contains a plan that breaks a rule; feedback says what to fix
@@ -240,7 +274,27 @@ class Agent:
             return None, (f"Your meal plan does not match the schema ({e.message}). "
                           f"{PLAN_SHAPE_HELP} {RESEND_PLAN}")
 
+        # With nothing requested (e.g. a vague request) there is nothing to check.
+        if requested_meal_types:
+            extra_meal_types = self._extra_meal_types(plan, requested_meal_types)
+            if extra_meal_types:
+                return None, (f"Remove {_join_words(extra_meal_types)}; only "
+                              f"{_join_words(sorted(requested_meal_types))} were requested. {RESEND_PLAN}")
+
         return plan, None
+
+    def _extra_meal_types(self, plan: MealPlan, requested_meal_types: Set[str]) -> List[str]:
+        """Meal types in the plan that the user did not ask for, sorted.
+
+        Only extra meals are checked, not missing ones: 'no lunch' puts lunch in the requested set
+        (see find_meal_types), so demanding every requested meal could ask for a meal the user refused.
+        """
+        extras = set()
+        for meal in plan:
+            meal_type = _normalize_meal_type(meal["meal_type"])
+            if meal_type not in requested_meal_types:
+                extras.add(meal_type)
+        return sorted(extras)
 
     def _normalize(self, item: str) -> str:
         """Lowercase and strip whitespace/punctuation so 'Tomato', 'tomato ', 'Tomatoes' compare cleanly."""
