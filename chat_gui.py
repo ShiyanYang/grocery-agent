@@ -4,7 +4,7 @@ The window runs the same steps as main.py:
     1. agent.generate_meal_plan()      - the chat with the user
     2. agent.generate_shopping_list()  - what to buy, after removing pantry items
 
-agent.py is not changed. generate_meal_plan() takes an input_fn and an output_fn, so the
+The agent code is not changed for the GUI. generate_meal_plan() takes an input_fn and an output_fn, so the
 GUI passes its own versions: input_fn waits for the user to type in the chat box, and
 output_fn shows the agent's messages in the chat box. The agent runs on a worker thread
 so the window stays responsive while the model is working.
@@ -67,11 +67,11 @@ EMOJI_FONT = ("Helvetica", 22)
 # ----------------------------------------------------------------------
 # Reading the agent's messages.
 # ----------------------------------------------------------------------
-# The agent prefixes model replies with this (see Agent._ask).
+# The agent prefixes model replies with this (see Agent._ask in agent.py).
 ANSWER_PREFIX = "Answer:"
 
 # A model reply that contains a meal plan: a JSON list of objects (same check as
-# Agent._check_meal_plan). The plan itself is shown as cards, not as JSON.
+# check_meal_plan in meal_plan.py). The plan itself is shown as cards, not as JSON.
 PLAN_START = re.compile(r"\[\s*\{")
 
 # Behind-the-scenes agent messages, turned into friendly words (or hidden).

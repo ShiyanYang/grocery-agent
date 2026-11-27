@@ -110,8 +110,8 @@ and join the days.
 ### 3. Ingredients bundled into one string
 In 2 of 15 earlier runs, the model wrote each meal's ingredients as one comma-separated string
 (`["pasta, canned tomatoes, olive oil, ..."]`). The schema accepts it, so neither grader noticed: the shopping
-list became 4 long entries and pantry items weren't removed. Options: reject it in `_check_meal_plan` with repair
-feedback, or split it in `_flatten_ingredients` (careful: `"boneless, skinless chicken breast"` is one item),
+list became 4 long entries and pantry items weren't removed. Options: reject it in `check_meal_plan` (`meal_plan.py`) with repair
+feedback, or split it in `build_shopping_list` (`shopping_list.py`) (careful: `"boneless, skinless chicken breast"` is one item),
 and add a rule check so the eval catches it. #9 (structured ingredients) would also prevent it.
 
 ### 4. Pantry matching still guesses from free text
@@ -162,7 +162,7 @@ def load_pantry():
 
 ### 8. The plan can have the wrong number of days
 One `veg_3day_breakfast_dinner` run asked for 3 days and got a 1-day plan; the agent accepted it. Add a day-count
-check to `_check_meal_plan`, like the meal-type check (item 47):
+check to `check_meal_plan` (`meal_plan.py`), like the meal-type check (item 47):
 - Read the requested days from the user's messages, keeping the latest ("make that 5 days instead of 3"). Accept
   "3 days", "three days" and "a week". No number found → no check.
 - If the plan's day count differs, send feedback such as "The plan has 1 day; 3 days were requested."
@@ -177,7 +177,7 @@ check to `_check_meal_plan`, like the meal-type check (item 47):
 Ingredients are free text, so every pantry comparison has to guess which words are the item ("cooked brown
 rice", "1 lb boneless chicken breast"). Change each ingredient in `MEAL_PLAN_SCHEMA` to
 `{"item": "chicken breast", "prep": "boneless", "amount": "1 lb"}` so the agent and the eval compare only `item`.
-Needs a schema, prompt and `_flatten_ingredients` change, and an eval run to confirm the 8B model follows it.
+Needs a schema, prompt and `shopping_list.py` change, and an eval run to confirm the 8B model follows it.
 
 ### 10. Try Gemma 4 E4B as the agent model
 It's far stronger than Llama 3 8B (MMLU-Pro ~69% vs ~41%) and smaller (5 GB vs 8 GB). It may also fix #1 (following
@@ -193,10 +193,10 @@ they come), run the eval and compare transcripts. If it becomes the agent, chang
   - Only 3 runs per case, so one run changes a case's pass rate by 33%. Use more runs for the cases that matter most.
 
 ### 12. Module docstrings and examples
-`agent.py`, `pantry.py` and `memory.py` have no module docstring:
+`pantry.py` and `memory.py` have no module docstring. `agent.py` has one now but no usage example:
 ```python
 """
-agent.py - AI agent for meal planning and shopping list generation.
+agent.py - the meal-planning chat with the model, and the shopping list that follows it.
 
 Example:
     >>> from agent import Agent
