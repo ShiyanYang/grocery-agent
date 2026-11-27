@@ -12,7 +12,7 @@ Tests cover critical, easy-to-break functionality:
 import json
 import pytest
 from unittest.mock import MagicMock, patch
-from agent import Agent, find_meal_types
+from agent import Agent, find_meal_types, find_refused_meal_types, update_requested_meal_types
 from config import config
 
 
@@ -357,6 +357,11 @@ BREAKFAST_DINNER = [_meal("breakfast"), _meal("dinner")]
     ("Dinner only, Italian food please.", {"dinner"}),
     ("Breakfast, lunch and dinner. No dietary restrictions.", {"breakfast", "lunch", "dinner"}),
     ("Snacks too", {"snack"}),
+    ("Supper and dessert", {"dinner", "dessert"}),
+    ("Pack lunches", {"lunch"}),
+    ("Everything except lunch", set()),
+    ("Breakfast and dinner, no lunch", {"breakfast", "dinner"}),
+    ("Not too spicy. Dinner only.", {"dinner"}),
     ("3 days", set()),
     ("Something healthy, I guess.", set()),
 ])
@@ -369,7 +374,7 @@ def test_plan_with_extra_meal_type_gets_specific_feedback(agent):
     reply = json.dumps(BREAKFAST_LUNCH_DINNER)
     plan, feedback = agent._check_meal_plan(reply, {"breakfast", "dinner"})
     assert plan is None
-    assert "Remove lunch; only breakfast and dinner were requested." in feedback
+    assert "Remove lunch; I asked only for breakfast and dinner." in feedback
 
 
 def test_plan_matching_requested_meal_types_is_accepted(agent):
@@ -390,10 +395,53 @@ def test_meal_types_not_checked_when_none_requested(agent):
 
 
 def test_missing_meal_type_is_not_rejected(agent):
-    """Only extra meals are flagged: 'no lunch' puts lunch in the requested set."""
+    """Only extra meals are flagged, never missing ones."""
     reply = json.dumps(BREAKFAST_DINNER)
     plan, feedback = agent._check_meal_plan(reply, {"breakfast", "lunch", "dinner"})
     assert feedback is None
+
+
+def test_find_refused_meal_types():
+    assert find_refused_meal_types("Everything except lunch") == {"lunch"}
+    assert find_refused_meal_types("no lunch or dinner please") == {"lunch", "dinner"}
+    assert find_refused_meal_types("No nuts. Dinner only.") == set()
+
+
+@pytest.mark.parametrize("earlier,message,expected", [
+    # A message that names no meals keeps what was asked for before.
+    ({"breakfast", "dinner"}, "No nuts please.", {"breakfast", "dinner"}),
+    # Meals named later are added...
+    ({"dinner"}, "Make the breakfast quick, please.", {"breakfast", "dinner"}),
+    ({"breakfast", "dinner"}, "Snacks too", {"breakfast", "dinner", "snack"}),
+    # ...unless the user replaces them.
+    ({"breakfast", "dinner"}, "Actually, make it lunch only.", {"lunch"}),
+    ({"breakfast"}, "Dinner instead.", {"dinner"}),
+    # Refused meals are taken out.
+    ({"breakfast", "lunch", "dinner"}, "Skip lunch.", {"breakfast", "dinner"}),
+    # Not sure what the user wants: stop checking.
+    (set(), "Everything except lunch", set()),
+    (set(), "Yes, and snacks too", set()),
+])
+def test_update_requested_meal_types(earlier, message, expected):
+    assert update_requested_meal_types(earlier, message) == expected
+
+
+@pytest.mark.parametrize("label", ["Afternoon Snack", "Snack 1", "Dinner (main)", "Supper"])
+def test_plan_label_containing_a_requested_meal_type_is_accepted(agent, label):
+    plan = [_meal("breakfast"), _meal(label)]
+    assert agent._check_meal_plan(json.dumps(plan), {"breakfast", "dinner", "snack"}) == (plan, None)
+
+
+def test_plan_label_with_no_known_meal_type_is_accepted(agent):
+    plan = [_meal("dinner"), _meal("Meal 2")]
+    assert agent._check_meal_plan(json.dumps(plan), {"dinner"}) == (plan, None)
+
+
+def test_requested_dessert_is_accepted_and_unrequested_dessert_is_flagged(agent):
+    plan = [_meal("dinner"), _meal("Dessert")]
+    assert agent._check_meal_plan(json.dumps(plan), {"dinner", "dessert"}) == (plan, None)
+    _, feedback = agent._check_meal_plan(json.dumps(plan), {"dinner"})
+    assert "Remove dessert; I asked only for dinner." in feedback
 
 
 def _run_meal_plan(agent, model_replies, user_inputs):
@@ -416,7 +464,7 @@ def test_self_repair_removes_extra_meal_type(agent):
     # The last two messages are the repair feedback and the model's fixed plan.
     feedback = messages[-2]
     assert feedback["role"] == "user"
-    assert "Remove lunch; only breakfast and dinner were requested." in feedback["content"]
+    assert "Remove lunch; I asked only for breakfast and dinner." in feedback["content"]
 
 
 def test_repair_feedback_does_not_count_as_a_meal_request(agent):

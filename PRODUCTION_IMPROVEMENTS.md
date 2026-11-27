@@ -80,14 +80,17 @@ _Last updated: 2026-11-27_
     - The 3 cases that always failed: meal types right in **8/9 runs (was 0/9)**; all rule checks 7/9.
     - 3 cases that passed before: meal types right in every plan; 8/9 runs passed all rule checks.
     - The placeholder was never copied into a plan.
-46. ✅ **Automatic PR review** (PR #2): `.github/workflows/pr-review.yml` runs Claude on every pull request and
-    posts inline comments. Needs the `ANTHROPIC_API_KEY` repository secret.
-47. ✅ **Meal-type safety net in code**: `generate_meal_plan` collects the meal types named in the user's own
-    messages (`find_meal_types`: breakfast, lunch, dinner, snack), and `_check_meal_plan` rejects a plan with any
-    other meal type, so self-repair sends "Remove lunch; only breakfast and dinner were requested." Repair feedback
-    is not scanned, or its "Remove lunch" would make lunch look requested. Only extra meals are flagged, not
-    missing ones, and "no lunch" still counts lunch as named, so negations can miss an extra meal but never reject
-    a good plan. If no meal type was named, nothing is checked. Unit tests in `test/test_agent.py`.
+46. ✅ **Code review before pushing**: run `/code-review` in Claude Code on the branch. The GitHub Actions review
+    from PR #2 was removed because it needed a paid API key.
+47. ✅ **Meal-type safety net in code**: `generate_meal_plan` tracks the meal types the user asks for in their own
+    messages (`update_requested_meal_types`: breakfast, brunch, lunch, dinner or supper, snack, dessert), and
+    `_check_meal_plan` rejects a plan with any other meal type, so self-repair sends "Remove lunch; I asked only for
+    breakfast and dinner." Meals named later are added, or replace the earlier ones when the message says "only"
+    or "instead". Refused meals ("no lunch", "except lunch") are taken out. When the request is unclear ("Everything
+    except lunch", "Yes, and snacks too" with nothing named before), nothing is checked. A plan label counts as the
+    meal types inside it ("Afternoon Snack" is a snack), and a label with none ("Meal 2") is never flagged. Repair
+    feedback is not scanned, or its "Remove lunch" would make lunch look requested. Only extra meals are flagged,
+    not missing ones. Unit tests in `test/test_agent.py`.
 
 ---
 

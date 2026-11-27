@@ -16,25 +16,96 @@ logger = logging.getLogger(__name__)
 # A meal plan: one dict per meal with "day", "meal_type", "meal_name" and "ingredients".
 MealPlan = List[Dict[str, Any]]
 
-# Meal types the agent looks for in what the user says.
-MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"]
+# Meal types the agent looks for in what the user says and in a plan's meal_type labels.
+MEAL_TYPES = ["breakfast", "brunch", "lunch", "dinner", "snack", "dessert"]
+
+# Other words for a meal type.
+MEAL_TYPE_ALIASES = {"supper": "dinner"}
+
+# A meal word right after one of these is refused, not requested: "no lunch", "everything except lunch".
+NEGATION_WORDS = ["no", "not", "without", "except", "skip", "minus"]
+
+# The user is replacing the meals they asked for earlier: "Actually, lunch only."
+REPLACING_WORDS = ["only", "instead"]
+
+# The user is adding to meals named earlier, possibly by the model: "Yes, and snacks too."
+ADDING_WORDS = ["too", "also", "plus", "as well"]
+
+
+def _contains_word(text: str, words: List[str]) -> bool:
+    for word in words:
+        if re.search(rf"\b{word}\b", text, re.IGNORECASE):
+            return True
+    return False
+
+
+def _is_negated(text: str, position: int) -> bool:
+    """True if one of the 3 words before position, in the same clause, is a negation word.
+
+    'everything except lunch' and 'no lunch or dinner' are negated; 'No nuts. Dinner only.' is not.
+    """
+    clause_start = 0
+    for punctuation in re.finditer(r"[.,;!?]", text[:position]):
+        clause_start = punctuation.end()
+    words_before = re.findall(r"[a-z']+", text[clause_start:position].lower())[-3:]
+    for word in words_before:
+        if word in NEGATION_WORDS:
+            return True
+    return False
+
+
+def _find_meal_words(text: str) -> List[Tuple[str, bool]]:
+    """Each meal word in text as (meal type, negated), e.g. 'Supper, no snacks' -> [('dinner', False), ('snack', True)].
+
+    Plurals count ('snacks', 'lunches') and aliases map to their meal type ('supper' -> 'dinner').
+    """
+    found = []
+    for word in MEAL_TYPES + list(MEAL_TYPE_ALIASES):
+        meal_type = MEAL_TYPE_ALIASES.get(word, word)
+        for match in re.finditer(rf"\b{word}(?:s|es)?\b", text, re.IGNORECASE):
+            found.append((meal_type, _is_negated(text, match.start())))
+    return found
 
 
 def find_meal_types(text: str) -> Set[str]:
-    """The meal types named in one user message, e.g. 'Only breakfast and dinner.' -> {'breakfast', 'dinner'}.
-
-    Plurals count ('snacks' -> 'snack'). Negations are not understood: 'no lunch' still finds 'lunch'.
-    """
+    """The meal types asked for in text, e.g. 'Only breakfast and dinner, no lunch.' -> {'breakfast', 'dinner'}."""
     found = set()
-    for meal_type in MEAL_TYPES:
-        if re.search(rf"\b{meal_type}s?\b", text, re.IGNORECASE):
+    for meal_type, negated in _find_meal_words(text):
+        if not negated:
             found.add(meal_type)
     return found
 
 
-def _normalize_meal_type(name: str) -> str:
-    """'Breakfast ', 'SNACKS' -> 'breakfast', 'snack', so plan meal types compare with MEAL_TYPES."""
-    return name.strip().lower().removesuffix("s")
+def find_refused_meal_types(text: str) -> Set[str]:
+    """The meal types refused in text, e.g. 'Everything except lunch.' -> {'lunch'}."""
+    found = set()
+    for meal_type, negated in _find_meal_words(text):
+        if negated:
+            found.add(meal_type)
+    return found
+
+
+def update_requested_meal_types(requested: Set[str], user_message: str) -> Set[str]:
+    """The meal types plans are checked against after the user sends user_message.
+
+    An empty set means "not sure", and then plans are not checked: a missed extra meal is better
+    than rejecting a good plan.
+    """
+    named = find_meal_types(user_message)
+    refused = find_refused_meal_types(user_message)
+    if not named and not refused:
+        return requested
+
+    if _contains_word(user_message, REPLACING_WORDS):
+        earlier = set()
+    elif not requested and _contains_word(user_message, ADDING_WORDS):
+        # "Yes, and snacks too": added to meals the model offered, which we don't track.
+        return set()
+    else:
+        earlier = requested
+
+    # "Everything except lunch" with nothing known earlier leaves an empty set, so nothing is checked.
+    return (earlier | named) - refused
 
 
 def _join_words(words: List[str]) -> str:
@@ -211,7 +282,7 @@ class Agent:
             messages.append({"role":"user","content": user_input})
             # Save user input to persistent memory
             self.memory.add(f"User: {user_input}")
-            requested_meal_types.update(find_meal_types(user_input))
+            requested_meal_types = update_requested_meal_types(requested_meal_types, user_input)
 
             content = self._ask(messages, output_fn)
             plan, feedback = self._check_meal_plan(content, requested_meal_types)
@@ -278,22 +349,27 @@ class Agent:
         if requested_meal_types:
             extra_meal_types = self._extra_meal_types(plan, requested_meal_types)
             if extra_meal_types:
-                return None, (f"Remove {_join_words(extra_meal_types)}; only "
-                              f"{_join_words(sorted(requested_meal_types))} were requested. {RESEND_PLAN}")
+                return None, (f"Remove {_join_words(extra_meal_types)}; I asked only for "
+                              f"{_join_words(sorted(requested_meal_types))}. {RESEND_PLAN}")
 
         return plan, None
 
     def _extra_meal_types(self, plan: MealPlan, requested_meal_types: Set[str]) -> List[str]:
         """Meal types in the plan that the user did not ask for, sorted.
 
-        Only extra meals are checked, not missing ones: 'no lunch' puts lunch in the requested set
-        (see find_meal_types), so demanding every requested meal could ask for a meal the user refused.
+        A label counts as the meal types named inside it: 'Afternoon Snack' is a snack, 'Supper' is dinner.
+        A label that names no known meal type, like 'Meal 2', is never flagged. Only extra meals are
+        checked, not missing ones: spotting what the user wants from their words is not reliable enough
+        to demand a meal.
         """
         extras = set()
         for meal in plan:
-            meal_type = _normalize_meal_type(meal["meal_type"])
-            if meal_type not in requested_meal_types:
-                extras.add(meal_type)
+            label_meal_types = find_meal_types(meal["meal_type"])
+            if not label_meal_types:
+                continue
+            if label_meal_types & requested_meal_types:
+                continue
+            extras.update(label_meal_types)
         return sorted(extras)
 
     def _normalize(self, item: str) -> str:
