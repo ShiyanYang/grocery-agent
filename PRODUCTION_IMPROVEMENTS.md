@@ -93,20 +93,11 @@ _Last updated: 2026-11-27_
 
 ## 🔴 High priority
 
-### 1. The agent adds meals the user didn't ask for (mostly fixed)
-The biggest problem in the 19-case run: in 9 runs, the user asked for certain meals in the same message as diet
-rules, and the plan added breakfast or lunch anyway. The prompt rule (item 45) cut this from 9/9 to 1/9 runs on
-the same cases: `conflict_vegan_cheese_omelette` still added lunch once. The code check (item 47) now rejects such
-a plan and asks for a fix. In the next run of the same 6 cases × 3 runs, meal types were right in all 18 runs, but
-the model got them right on its own, so the check never had to act.
-
-Still to do:
-- ~~**Safety net in code**~~: done (item 47). Unit tests cover the repair; the model hasn't yet added an extra
-  meal in an eval run, so the repair hasn't yet been seen fixing a real plan.
-- **Watch for side effects of the longer prompt**: in the item 45 runs, one `vegetarian_gluten_free_dairy_free`
-  plan used a "whole wheat wrap" (gluten), the first diet break since the categories were added. All 3 runs in
-  the item 47 run were clean, so it looks like chance (1 break in 6 runs); a run with `-n 5` would settle it.
-- **Confirm with a full run with the judge**: the tests so far used rule checks only, on 6 of 19 cases.
+### 1. Confirm the meal-type fixes (items 45 and 47)
+- **Full 19-case run with the judge**: the fixes were tested on 6 cases with rule checks only. Check whether the
+  meal-type repair ever fires on a real plan.
+- **Rerun `vegetarian_gluten_free_dairy_free` with `-n 5`**: 1 of 6 runs used a "whole wheat wrap" (gluten). It
+  may be a side effect of the longer prompt, or chance.
 
 ### 2. A full week is too long for one reply
 `full_week_three_meals` failed every run: at `LLM_MAX_TOKENS` = 1024, 2 runs timed out in the repair loop and 1
@@ -167,18 +158,12 @@ def load_pantry():
 ```
 
 ### 8. The plan can have the wrong number of days
-In the safety-net eval run (item 47), one `veg_3day_breakfast_dinner` run asked for 3 days and got a 1-day plan.
-The eval's `days` rule caught it, but the agent accepted the plan. Add a day-count check like the meal-type
-check:
-- Track the requested number of days from the user's own messages. Keep the latest number, because users change
-  their mind (`change_of_mind_number_of_days`: "make that 5 days instead of 3"). Accept digits and words ("3 days",
-  "three days", "a week" → 7). If no number is found, don't check.
-- In `_check_meal_plan`, count distinct day labels the same way as `_check_days` in `eval.py`. If the count is wrong,
-  send specific feedback, e.g. "The plan has 1 day; 3 days were requested. Plan Day 1 to Day 3."
-- Unit tests: parsing (digits, words, a change of mind, no number), the feedback text, and a repair run through
-  `generate_meal_plan`.
-- Watch `full_week_three_meals` (item 2): a 7-day plan already hits `LLM_MAX_TOKENS`, so a repair request for
-  all 7 days may run out of tokens again.
+One `veg_3day_breakfast_dinner` run asked for 3 days and got a 1-day plan; the agent accepted it. Add a day-count
+check to `_check_meal_plan`, like the meal-type check (item 47):
+- Read the requested days from the user's messages, keeping the latest ("make that 5 days instead of 3"). Accept
+  "3 days", "three days" and "a week". No number found → no check.
+- If the plan's day count differs, send feedback such as "The plan has 1 day; 3 days were requested."
+- Risk: a 7-day plan already runs out of tokens (item 2), so a 7-day repair may too.
 
 
 ---
