@@ -80,26 +80,27 @@ _Last updated: 2026-11-27_
     - The 3 cases that always failed: meal types right in **8/9 runs (was 0/9)**; all rule checks 7/9.
     - 3 cases that passed before: meal types right in every plan; 8/9 runs passed all rule checks.
     - The placeholder was never copied into a plan.
-46. ✅ **Automatic PR review** (PR #2): `.github/workflows/pr-review.yml` runs Claude on every pull request and
-    posts inline comments. Needs the `ANTHROPIC_API_KEY` repository secret.
+46. ✅ **Code review before pushing**: run `/code-review` in Claude Code on the branch. The GitHub Actions review
+    from PR #2 was removed because it needed a paid API key.
+47. ✅ **Meal-type safety net in code**: `generate_meal_plan` tracks the meal types the user asks for in their own
+    messages (`update_requested_meal_types`: breakfast, brunch, lunch, dinner or supper, snack, dessert), and
+    `_check_meal_plan` rejects a plan with any other meal type, so self-repair sends "Remove lunch; I asked only for
+    breakfast and dinner." Meals named later are added, or replace the earlier ones when the message says "only"
+    or "instead". Refused meals ("no lunch", "except lunch") are taken out. When the request is unclear ("Everything
+    except lunch", "Yes, and snacks too" with nothing named before), nothing is checked. A plan label counts as the
+    meal types inside it ("Afternoon Snack" is a snack), and a label with none ("Meal 2") is never flagged. Repair
+    feedback is not scanned, or its "Remove lunch" would make lunch look requested. Only extra meals are flagged,
+    not missing ones. Unit tests in `test/test_agent.py`.
 
 ---
 
 ## 🔴 High priority
 
-### 1. The agent adds meals the user didn't ask for (mostly fixed)
-The biggest problem in the 19-case run: in 9 runs, the user asked for certain meals in the same message as diet
-rules, and the plan added breakfast or lunch anyway. The prompt rule (item 45) cut this from 9/9 to 1/9 runs on
-the same cases: `conflict_vegan_cheese_omelette` still added lunch once.
-
-Still to do:
-- **Safety net in code**: check meal types in `_check_meal_plan`, so self-repair sends specific feedback ("remove
-  lunch; only breakfast and dinner were requested") instead of letting the plan through. This needs the requested
-  meal types from the conversation, which the agent doesn't track yet. It's a code change, so test it with unit tests.
-- **Watch for side effects of the longer prompt**: in the same runs, one `vegetarian_gluten_free_dairy_free` plan
-  used a "whole wheat wrap" (gluten), the first diet break since the categories were added. It may be chance;
-  rerun that case with `-n 5` before changing anything.
-- **Confirm with a full run with the judge**: the tests so far used rule checks only, on 6 of 19 cases.
+### 1. Confirm the meal-type fixes (items 45 and 47)
+- **Full 19-case run with the judge**: the fixes were tested on 6 cases with rule checks only. Check whether the
+  meal-type repair ever fires on a real plan.
+- **Rerun `vegetarian_gluten_free_dairy_free` with `-n 5`**: 1 of 6 runs used a "whole wheat wrap" (gluten). It
+  may be a side effect of the longer prompt, or chance.
 
 ### 2. A full week is too long for one reply
 `full_week_three_meals` failed every run: at `LLM_MAX_TOKENS` = 1024, 2 runs timed out in the repair loop and 1
@@ -158,6 +159,14 @@ def load_pantry():
     with FileLock("data/pantry.json.lock"):
         ...
 ```
+
+### 8. The plan can have the wrong number of days
+One `veg_3day_breakfast_dinner` run asked for 3 days and got a 1-day plan; the agent accepted it. Add a day-count
+check to `_check_meal_plan`, like the meal-type check (item 47):
+- Read the requested days from the user's messages, keeping the latest ("make that 5 days instead of 3"). Accept
+  "3 days", "three days" and "a week". No number found → no check.
+- If the plan's day count differs, send feedback such as "The plan has 1 day; 3 days were requested."
+- Risk: a 7-day plan already runs out of tokens (item 2), so a 7-day repair may too.
 
 
 ---
