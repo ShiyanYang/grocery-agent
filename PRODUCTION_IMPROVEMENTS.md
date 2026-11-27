@@ -1,6 +1,6 @@
 # Production-Grade Code Review & Improvements
 
-_Last updated: 2026-11-26_
+_Last updated: 2026-11-27_
 
 ## ✅ Completed
 
@@ -73,16 +73,33 @@ _Last updated: 2026-11-26_
     and no plan broke a diet. The judge missed 4 real problems that the rules caught. New problems found are under
     High priority below.
 
+### Round 8: following the requested meals
+45. ✅ **Meal-type rule in the system prompt** (PR #1): a new rule "Plan only the meals the user asks for ... and
+    do not add extra meals", and the schema example now uses `"<a meal the user asked for>"` instead of breakfast
+    and lunch, which the model was copying. Tested without the judge (`eval_quick.json`, `eval_tier2_regression.json`):
+    - The 3 cases that always failed: meal types right in **8/9 runs (was 0/9)**; all rule checks 7/9.
+    - 3 cases that passed before: meal types right in every plan; 8/9 runs passed all rule checks.
+    - The placeholder was never copied into a plan.
+46. ✅ **Automatic PR review** (PR #2): `.github/workflows/pr-review.yml` runs Claude on every pull request and
+    posts inline comments. Needs the `ANTHROPIC_API_KEY` repository secret.
+
 ---
 
 ## 🔴 High priority
 
-### 1. The agent adds meals the user didn't ask for
-The biggest problem in the 19-case run: in 9 runs, the user asked for certain meals (e.g. "just dinner") in the
-same message as diet rules, and the plan added breakfast or lunch anyway. It hit `conflict_vegan_cheese_omelette`,
-`vegetarian_gluten_free_dairy_free` and `halal_no_pork_no_alcohol` in every run. The rule check `meal_types` catches
-it. Options: restate the requested meal types as their own rule in the system prompt, and/or check meal types in
-`_check_meal_plan` so self-repair sends specific feedback ("remove breakfast; only dinner was requested").
+### 1. The agent adds meals the user didn't ask for (mostly fixed)
+The biggest problem in the 19-case run: in 9 runs, the user asked for certain meals in the same message as diet
+rules, and the plan added breakfast or lunch anyway. The prompt rule (item 45) cut this from 9/9 to 1/9 runs on
+the same cases: `conflict_vegan_cheese_omelette` still added lunch once.
+
+Still to do:
+- **Safety net in code**: check meal types in `_check_meal_plan`, so self-repair sends specific feedback ("remove
+  lunch; only breakfast and dinner were requested") instead of letting the plan through. This needs the requested
+  meal types from the conversation, which the agent doesn't track yet. It's a code change, so test it with unit tests.
+- **Watch for side effects of the longer prompt**: in the same runs, one `vegetarian_gluten_free_dairy_free` plan
+  used a "whole wheat wrap" (gluten), the first diet break since the categories were added. It may be chance;
+  rerun that case with `-n 5` before changing anything.
+- **Confirm with a full run with the judge**: the tests so far used rule checks only, on 6 of 19 cases.
 
 ### 2. A full week is too long for one reply
 `full_week_three_meals` failed every run: at `LLM_MAX_TOKENS` = 1024, 2 runs timed out in the repair loop and 1
@@ -106,9 +123,11 @@ The agent removes leaks like `chicken breasts` (item 30), but:
 
 Long term: see #9 (structured ingredients).
 
-### 5. Vague requests
+### 5. Doesn't plan when asked, and vague requests
 In `vague_request`, 1 run kept asking questions even after "Please give me the meal plan now", so there was no plan,
-and another built a 5-day plan from nothing. The correct behaviour for this case (and for
+and another built a 5-day plan from nothing. After item 45 it happened in a normal case too: in 1 of 3
+`two_day_all_meals` runs (3/3 before), the model asked three more questions instead of planning. A prompt rule
+such as "When the user asks for the plan, reply with the plan right away" targets it directly. The correct behaviour for this case (and for
 `conflict_vegan_cheese_omelette`) is still marked **PRODUCT DECISION NEEDED** in its `note`: decide it, then make
 the agent stop asking and plan with sensible defaults once the user asks for the plan.
 
@@ -241,7 +260,9 @@ MLX only runs on Apple Silicon macOS, so a standard Linux Docker image won't wor
 ## Next steps
 
 1. **Now**
-   - [ ] Make the agent follow the requested meal types (#1)
+   - [x] Make the agent follow the requested meal types: prompt rule (item 45)
+   - [ ] Meal-type check in `_check_meal_plan` as a safety net (#1)
+   - [ ] Reply with the plan right away when the user asks for it (#5)
    - [ ] Fix full-week plans running out of tokens (#2)
    - [ ] Catch ingredients bundled into one string (agent + eval)
    - [ ] Rerun the eval with the Mac kept awake (`caffeinate -i python eval.py`) so timings are recorded

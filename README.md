@@ -102,7 +102,7 @@ Reading all 57 plans by hand:
 - **No plan broke a diet.** Late allergies, changes of mind, meat in a vegetarian's pantry and hidden gluten
   (the model used gluten-free soy sauce and rice noodles) were all handled correctly.
 - **Biggest problem: the agent ignores which meals were asked for** when the same message also lists diet rules.
-  9 runs added breakfast or lunch the user didn't ask for.
+  9 runs added breakfast or lunch the user didn't ask for. Mostly fixed since; see below.
 - **A full week is too long a reply.** At `LLM_MAX_TOKENS` = 1024, 2 runs timed out in the repair loop and 1 returned
   only 8 of 21 meals.
 - **Vague request:** 1 run kept asking questions even after "Please give me the meal plan now", so there was no plan.
@@ -113,6 +113,18 @@ Reading all 57 plans by hand:
 - **Pantry matching doesn't handle quantities.** `1 lb boneless chicken breast` and `1/4 cup extra virgin olive oil`
   are pantry items but were listed for review instead of removed. `diced` should be a same-item qualifier.
 - **Times aren't reported** because the Mac slept during the run. A plan normally takes ~50–70 s, plus ~30 s for the judge.
+
+### After the meal-type prompt fix
+
+The system prompt now says to plan only the meals the user asks for, and its example no longer shows breakfast and
+lunch. Tested on 6 cases × 3 runs, rule checks only (no judge):
+
+| Cases | Meal types right | All rule checks passed | Other failures |
+|---|:-:|:-:|---|
+| The 3 that always added meals (`eval_quick.json`) | 8/9 (was 0/9) | 7/9 | 1 extra lunch; 1 "whole wheat wrap" in a gluten-free plan |
+| 3 that passed before (`eval_tier2_regression.json`) | 8/8 plans | 8/9 | 1 run asked more questions instead of planning |
+
+A full 19-case run with the judge is still to do.
 
 ## Known limitations
 
